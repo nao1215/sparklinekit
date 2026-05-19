@@ -24,6 +24,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/string_tree
 import sparklinekit/internal/color.{type Rgba}
+import sparklinekit/internal/format
 import sparklinekit/internal/png
 import sparklinekit/internal/raster
 import sparklinekit/internal/scale
@@ -145,7 +146,7 @@ pub fn with_corner_radius(builder: Builder, radius: Float) -> Builder {
 pub fn to_svg(builder: Builder) -> String {
   let Builder(
     values,
-    theme,
+    _theme,
     color,
     background,
     negative_color,
@@ -158,14 +159,15 @@ pub fn to_svg(builder: Builder) -> String {
     Some(c) -> c
     None -> color
   }
-  let _ = theme
   let bg_layer = background_rect(width, height, background)
   let bars =
     rect_body(values, width, height, color, negative_color, gap, radius)
   string_tree.new()
-  |> string_tree.append(
-    "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ",
-  )
+  |> string_tree.append("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"")
+  |> string_tree.append(int.to_string(width))
+  |> string_tree.append("\" height=\"")
+  |> string_tree.append(int.to_string(height))
+  |> string_tree.append("\" viewBox=\"0 0 ")
   |> string_tree.append(int.to_string(width))
   |> string_tree.append(" ")
   |> string_tree.append(int.to_string(height))
@@ -176,13 +178,21 @@ pub fn to_svg(builder: Builder) -> String {
   |> string_tree.to_string
 }
 
-/// Backwards-compatible alias for [`to_svg`](#to_svg).
+/// Deprecated alias for [`to_svg`](#to_svg). Will be removed in a
+/// future release.
+@deprecated("Use bar.to_svg/1 instead")
 pub fn to_string(builder: Builder) -> String {
   to_svg(builder)
 }
 
 /// Render the builder to PNG bytes (8-bit RGBA truecolor). The
 /// viewBox dimensions double as the pixel size.
+///
+/// The PNG IDAT payload is written using DEFLATE's uncompressed
+/// "store" blocks (no Huffman coding) so the encoder stays pure
+/// Gleam with zero FFI. As a result the output is roughly
+/// `width * height * 4` bytes regardless of how uniform the image
+/// is — for visual size context, prefer SVG.
 pub fn to_png(builder: Builder) -> BitArray {
   let Builder(
     values,
@@ -262,16 +272,16 @@ fn render_rect_svg(rect: Rect, fill: String, radius: Float) -> String {
     |> float.max(0.0)
   let radius_attr = case r >. 0.0 {
     False -> ""
-    True -> " rx=\"" <> float.to_string(r) <> "\""
+    True -> " rx=\"" <> format.coord(r) <> "\""
   }
   "<rect x=\""
-  <> float.to_string(rect.x)
+  <> format.coord(rect.x)
   <> "\" y=\""
-  <> float.to_string(rect.y)
+  <> format.coord(rect.y)
   <> "\" width=\""
-  <> float.to_string(rect.width)
+  <> format.coord(rect.width)
   <> "\" height=\""
-  <> float.to_string(rect.height)
+  <> format.coord(rect.height)
   <> "\" fill=\""
   <> fill
   <> "\""
@@ -304,29 +314,61 @@ fn compute_layout(
   let #(lo, hi) = scale.min_max(values)
   let #(y_min, y_max) = effective_range(lo, hi)
   let span = y_max -. y_min
-  let baseline_y = baseline_y(height_f, y_min, span)
-  let #(rects, _) =
-    list.fold(values, #([], 0), fn(acc, value) {
-      let #(rs, i) = acc
-      let x = int.to_float(i) *. step
-      let y_value = y_coord(value, y_min, span, height_f)
-      let #(rect_y, rect_h) = case value >=. 0.0 {
-        True -> #(y_value, baseline_y -. y_value)
-        False -> #(baseline_y, y_value -. baseline_y)
-      }
-      let safe_h = case rect_h >. 0.0 {
-        True -> rect_h
-        False -> 0.0
-      }
-      #(
-        [
-          Rect(x: x, y: rect_y, width: bar_w, height: safe_h, value: value),
-          ..rs
-        ],
-        i + 1,
-      )
-    })
-  Layout(rects: list.reverse(rects))
+  // Degenerate case: every value is the same (or there is only one).
+  // The natural normalised height would be the full canvas, which
+  // looks like a solid block rather than a sparkline and is
+  // inconsistent with how `line` and `unicode` render the same input
+  // (a flat midline / middle block). Use half-height bars rising
+  // from the bottom so the chart still says "constant value" without
+  // turning into a giant rectangle.
+  //
+  // Note: `effective_range` extends the visible range to include zero
+  // for all-positive or all-negative input, so `span > 0` is possible
+  // even when every input value is identical. The check below uses
+  // the *raw* lo == hi comparison to catch that.
+  case lo == hi || span <=. 0.0 {
+    True -> {
+      let half = height_f /. 2.0
+      let #(rects, _) =
+        list.fold(values, #([], 0), fn(acc, value) {
+          let #(rs, i) = acc
+          let x = int.to_float(i) *. step
+          #(
+            [
+              Rect(x: x, y: half, width: bar_w, height: half, value: value),
+              ..rs
+            ],
+            i + 1,
+          )
+        })
+      Layout(rects: list.reverse(rects))
+    }
+    False -> {
+      let baseline_y = baseline_y(height_f, y_min, span)
+      let #(rects, _) =
+        list.fold(values, #([], 0), fn(acc, value) {
+          let #(rs, i) = acc
+          let x = int.to_float(i) *. step
+          let y_value = y_coord(value, y_min, span, height_f)
+          let #(rect_y, rect_h) = case value >=. 0.0 {
+            True -> #(y_value, baseline_y -. y_value)
+            False -> #(baseline_y, y_value -. baseline_y)
+          }
+          let safe_h = case rect_h >. 0.0 {
+            True -> rect_h
+            False -> 0.0
+          }
+          #(
+            [
+              Rect(x: x, y: rect_y, width: bar_w, height: safe_h, value: value),
+              ..rs
+            ],
+            i + 1,
+          )
+        })
+      Layout(rects: list.reverse(rects))
+    }
+  }
 }
 
 fn paint_bars(

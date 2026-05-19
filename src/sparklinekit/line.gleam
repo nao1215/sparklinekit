@@ -24,6 +24,7 @@ import gleam/list
 import gleam/string
 import gleam/string_tree
 import sparklinekit/internal/color.{type Rgba}
+import sparklinekit/internal/format
 import sparklinekit/internal/png
 import sparklinekit/internal/raster
 import sparklinekit/internal/scale
@@ -215,6 +216,10 @@ pub fn with_stroke_width(builder: Builder, stroke_width: Float) -> Builder {
 }
 
 /// Render the builder to a self-contained `<svg>` element string.
+///
+/// The `<svg>` carries `width`, `height`, and `viewBox` attributes so
+/// the chart sizes itself correctly both when embedded inside a
+/// CSS-sized container and when displayed standalone.
 pub fn to_svg(builder: Builder) -> String {
   let points = pixel_points(builder)
   let defs_layer = gradient_defs_svg(builder, points)
@@ -224,9 +229,11 @@ pub fn to_svg(builder: Builder) -> String {
   let line_layer = stroke_svg(builder, points)
   let spot_layer = spot_svg(builder, points)
   string_tree.new()
-  |> string_tree.append(
-    "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ",
-  )
+  |> string_tree.append("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"")
+  |> string_tree.append(int.to_string(builder.width))
+  |> string_tree.append("\" height=\"")
+  |> string_tree.append(int.to_string(builder.height))
+  |> string_tree.append("\" viewBox=\"0 0 ")
   |> string_tree.append(int.to_string(builder.width))
   |> string_tree.append(" ")
   |> string_tree.append(int.to_string(builder.height))
@@ -240,7 +247,9 @@ pub fn to_svg(builder: Builder) -> String {
   |> string_tree.to_string
 }
 
-/// Backwards-compatible alias for [`to_svg`](#to_svg).
+/// Deprecated alias for [`to_svg`](#to_svg). Will be removed in a
+/// future release.
+@deprecated("Use line.to_svg/1 instead")
 pub fn to_string(builder: Builder) -> String {
   to_svg(builder)
 }
@@ -251,6 +260,12 @@ pub fn to_string(builder: Builder) -> String {
 /// produces a 240x60 image. The canvas starts at the background
 /// colour (transparent when `background == "none"`) and the stroke
 /// is drawn with Xiaolin Wu anti-aliasing.
+///
+/// The PNG IDAT payload is written using DEFLATE's uncompressed
+/// "store" blocks (no Huffman coding) so the encoder stays pure
+/// Gleam with zero FFI. As a result the output is roughly
+/// `width * height * 4` bytes regardless of how uniform the image
+/// is — for visual size context, prefer SVG.
 pub fn to_png(builder: Builder) -> BitArray {
   let fg = parse_string_colour(builder.color, theme.foreground(builder.theme))
   let bg = case builder.background {
@@ -300,13 +315,39 @@ fn background_rect(
   }
 }
 
+/// Compute the gradient `<linearGradient>` id for a builder.
+///
+/// The id includes the resolved top colour (as an 8-digit hex) so two
+/// charts that share dimensions and value count but use different
+/// themes get distinct ids — without this, browsers inlining multiple
+/// SVGs into the same page would reuse the first gradient definition
+/// for every subsequent chart.
 fn gradient_id(builder: Builder) -> String {
+  let top = gradient_top_colour(builder)
+  let top_suffix =
+    color.to_hex_rgba(top)
+    |> string.replace("#", "")
   "sparklinekit-area-"
   <> int.to_string(builder.width)
   <> "x"
   <> int.to_string(builder.height)
   <> "-"
   <> int.to_string(list.length(builder.values))
+  <> "-"
+  <> top_suffix
+}
+
+fn gradient_top_colour(builder: Builder) -> Rgba {
+  let fg = parse_string_colour(builder.color, theme.foreground(builder.theme))
+  case builder.area {
+    AreaExplicit(c) -> parse_string_colour_or(c, fg)
+    AreaAuto ->
+      case color.parse_hex(theme.area(builder.theme)) {
+        Ok(c) -> c
+        Error(_) -> color.with_alpha(fg, factor: default_area_alpha)
+      }
+    NoArea -> fg
+  }
 }
 
 fn gradient_defs_svg(
@@ -318,18 +359,8 @@ fn gradient_defs_svg(
     _, False, _ -> string_tree.new()
     _, _, [] -> string_tree.new()
     _, _, [_] -> string_tree.new()
-    mode, True, _ -> {
-      let fg =
-        parse_string_colour(builder.color, theme.foreground(builder.theme))
-      let top = case mode {
-        AreaExplicit(c) -> parse_string_colour_or(c, fg)
-        AreaAuto ->
-          case color.parse_hex(theme.area(builder.theme)) {
-            Ok(c) -> c
-            Error(_) -> color.with_alpha(fg, factor: default_area_alpha)
-          }
-        NoArea -> fg
-      }
+    _, True, _ -> {
+      let top = gradient_top_colour(builder)
       let bottom = color.with_alpha(top, factor: 0.0)
       let top_attr = color.to_hex_rgba(top)
       let bottom_attr = color.to_hex_rgba(bottom)
@@ -383,13 +414,13 @@ fn area_svg(
       }
       let close =
         " L "
-        <> float.to_string(last_x)
+        <> format.coord(last_x)
         <> " "
-        <> float.to_string(bottom)
+        <> format.coord(bottom)
         <> " L "
-        <> float.to_string(first_x)
+        <> format.coord(first_x)
         <> " "
-        <> float.to_string(bottom)
+        <> format.coord(bottom)
         <> " Z"
       string_tree.new()
       |> string_tree.append("<path fill=\"")
@@ -414,7 +445,7 @@ fn stroke_svg(
       |> string_tree.append("<path fill=\"none\" stroke=\"")
       |> string_tree.append(escape_attribute(builder.color))
       |> string_tree.append("\" stroke-width=\"")
-      |> string_tree.append(float.to_string(builder.stroke_width))
+      |> string_tree.append(format.coord(builder.stroke_width))
       |> string_tree.append(
         "\" stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"",
       )
@@ -432,11 +463,11 @@ fn spot_svg(
     True, Ok(#(x, y)) ->
       string_tree.new()
       |> string_tree.append("<circle cx=\"")
-      |> string_tree.append(float.to_string(x))
+      |> string_tree.append(format.coord(x))
       |> string_tree.append("\" cy=\"")
-      |> string_tree.append(float.to_string(y))
+      |> string_tree.append(format.coord(y))
       |> string_tree.append("\" r=\"")
-      |> string_tree.append(float.to_string(builder.spot_radius))
+      |> string_tree.append(format.coord(builder.spot_radius))
       |> string_tree.append("\" fill=\"")
       |> string_tree.append(escape_attribute(builder.spot_color))
       |> string_tree.append("\"/>")
@@ -454,9 +485,9 @@ fn last_point(points: List(#(Float, Float))) -> Result(#(Float, Float), Nil) {
 fn path_data(points: List(#(Float, Float)), smoothing: Float) -> String {
   case points {
     [] -> ""
-    [#(x, y)] -> "M " <> float.to_string(x) <> " " <> float.to_string(y)
+    [#(x, y)] -> "M " <> format.coord(x) <> " " <> format.coord(y)
     [#(x, y), ..rest] -> {
-      let head = "M " <> float.to_string(x) <> " " <> float.to_string(y)
+      let head = "M " <> format.coord(x) <> " " <> format.coord(y)
       case smoothing <=. 0.0 {
         True -> head <> linear_segments(rest)
         False -> head <> bezier_segments(#(x, y), rest, smoothing)
@@ -468,7 +499,7 @@ fn path_data(points: List(#(Float, Float)), smoothing: Float) -> String {
 fn linear_segments(points: List(#(Float, Float))) -> String {
   list.fold(points, "", fn(acc, p) {
     let #(x, y) = p
-    acc <> " L " <> float.to_string(x) <> " " <> float.to_string(y)
+    acc <> " L " <> format.coord(x) <> " " <> format.coord(y)
   })
 }
 
@@ -489,17 +520,17 @@ fn bezier_segments(
       let c2y = y
       let segment =
         " C "
-        <> float.to_string(c1x)
+        <> format.coord(c1x)
         <> " "
-        <> float.to_string(c1y)
+        <> format.coord(c1y)
         <> ", "
-        <> float.to_string(c2x)
+        <> format.coord(c2x)
         <> " "
-        <> float.to_string(c2y)
+        <> format.coord(c2y)
         <> ", "
-        <> float.to_string(x)
+        <> format.coord(x)
         <> " "
-        <> float.to_string(y)
+        <> format.coord(y)
       #(p, acc <> segment)
     })
   out
@@ -573,15 +604,24 @@ fn resolve_area_colour(
 fn pixel_points(builder: Builder) -> List(#(Float, Float)) {
   let width_f = int.to_float(builder.width)
   let height_f = int.to_float(builder.height)
-  let inset =
+  // Cap the requested inset to half the smaller side so the drawing
+  // never extends outside the viewBox on a tiny canvas. Without this
+  // clamp a `with_size(1, 1)` chart was producing coordinates like
+  // `M 1.0 2.0` that fell outside the `0 0 1 1` viewBox.
+  let raw_inset =
     float.max(builder.stroke_width /. 2.0, builder.spot_radius +. 1.0)
     |> float.max(1.0)
+  let max_inset = float.min(width_f /. 2.0, height_f /. 2.0)
+  let inset = float.min(raw_inset, max_inset)
   let pad_x = inset
   let pad_top = inset
   let pad_bottom = inset
-  let usable_w = float.max(width_f -. 2.0 *. pad_x, 1.0)
+  // Clamp the drawable width to what actually fits inside the
+  // canvas; without this, a tiny `with_size(1, 1)` could produce
+  // path coordinates extending past the right edge of the viewBox.
+  let usable_w = float.max(width_f -. 2.0 *. pad_x, 0.0)
   let top_y = pad_top
-  let bottom_y = float.max(height_f -. pad_bottom, top_y +. 1.0)
+  let bottom_y = float.max(height_f -. pad_bottom, top_y)
   let mid = { top_y +. bottom_y } /. 2.0
   case builder.values {
     [] -> []
