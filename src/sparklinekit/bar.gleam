@@ -356,7 +356,8 @@ fn compute_layout(
           let #(rs, i) = acc
           let x = int.to_float(i) *. step
           let y_value = y_coord(value, y_min, span, height_f)
-          let #(safe_y, safe_h) = rect_dimensions(value, y_value, baseline_y)
+          let #(safe_y, safe_h) =
+            rect_dimensions(value, y_value, baseline_y, height_f)
           #(
             [
               Rect(x: x, y: safe_y, width: bar_w, height: safe_h, value: value),
@@ -379,6 +380,7 @@ fn rect_dimensions(
   value: Float,
   y_value: Float,
   baseline_y: Float,
+  height_f: Float,
 ) -> #(Float, Float) {
   let #(rect_y, rect_h) = case value >=. 0.0 {
     True -> #(y_value, baseline_y -. y_value)
@@ -386,14 +388,30 @@ fn rect_dimensions(
   }
   case rect_h >. min_visible_height {
     True -> #(rect_y, rect_h)
-    False -> hairline_at_baseline(value, baseline_y)
+    False -> hairline_at_baseline(value, baseline_y, height_f)
   }
 }
 
-fn hairline_at_baseline(value: Float, baseline_y: Float) -> #(Float, Float) {
-  case value >=. 0.0 {
-    True -> #(baseline_y -. min_visible_height, min_visible_height)
-    False -> #(baseline_y, min_visible_height)
+/// Position a 1-pixel hairline anchored at the baseline, growing
+/// *into* the canvas. Positive (or zero) values prefer to extend
+/// above the baseline; negative values prefer below. Either
+/// preference flips when the baseline itself sits within
+/// `min_visible_height` of the corresponding canvas edge — for
+/// example, all-negative data pins the baseline to the top edge,
+/// so a zero-value hairline must grow downward (into the canvas)
+/// rather than upward (outside it).
+fn hairline_at_baseline(
+  value: Float,
+  baseline_y: Float,
+  height_f: Float,
+) -> #(Float, Float) {
+  let above_fits = baseline_y >=. min_visible_height
+  let below_fits = height_f -. baseline_y >=. min_visible_height
+  case value >=. 0.0, above_fits, below_fits {
+    True, True, _ -> #(baseline_y -. min_visible_height, min_visible_height)
+    True, False, _ -> #(baseline_y, min_visible_height)
+    False, _, True -> #(baseline_y, min_visible_height)
+    False, _, False -> #(baseline_y -. min_visible_height, min_visible_height)
   }
 }
 
