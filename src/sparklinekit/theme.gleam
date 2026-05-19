@@ -35,66 +35,109 @@ pub opaque type Theme {
   Theme(foreground: String, background: String, area: String, negative: String)
 }
 
-/// Cool blue tones on a soft sky-tinted canvas. The default theme
-/// applied by the README sample generator.
+/// Classic vivid blue on white — a sensible default for product
+/// dashboards. Foreground is Tailwind `blue-600`.
 pub fn ocean() -> Theme {
   Theme(
-    foreground: "#1F6FEB",
-    background: "#F0F6FF",
-    area: "#1F6FEB33",
+    foreground: "#2563EB",
+    background: "#FFFFFF",
+    area: "#2563EB33",
     negative: "#94A3B8",
   )
 }
 
-/// Green / sage palette suitable for finance "up" charts.
+/// Emerald green paired with a red negative — the canonical
+/// "finance up / down" palette.
 pub fn forest() -> Theme {
   Theme(
-    foreground: "#22A06B",
-    background: "#F2FBF5",
-    area: "#22A06B2E",
-    negative: "#E5484D",
+    foreground: "#10B981",
+    background: "#FFFFFF",
+    area: "#10B98133",
+    negative: "#EF4444",
   )
 }
 
-/// Warm orange and coral, useful for "attention" or alert
-/// dashboards.
+/// Warm orange — good for attention or "trending" indicators.
 pub fn sunset() -> Theme {
   Theme(
-    foreground: "#F76808",
-    background: "#FFF7ED",
-    area: "#F7680833",
-    negative: "#7E22CE",
+    foreground: "#F97316",
+    background: "#FFFFFF",
+    area: "#F9731633",
+    negative: "#7C3AED",
   )
 }
 
-/// Grayscale palette — prints cleanly and embeds well in monochrome
-/// dashboards.
+/// Near-black on pure white — print-friendly and embeds cleanly in
+/// monochrome dashboards.
 pub fn mono() -> Theme {
   Theme(
-    foreground: "#1F2937",
-    background: "#F9FAFB",
-    area: "#1F293726",
-    negative: "#9CA3AF",
+    foreground: "#0F172A",
+    background: "#FFFFFF",
+    area: "#0F172A29",
+    negative: "#94A3B8",
   )
 }
 
-/// High-contrast neon palette for dark backgrounds.
+/// High-contrast cyan on near-black — designed for dark UIs.
 pub fn neon() -> Theme {
   Theme(
     foreground: "#22D3EE",
-    background: "#0F172A",
+    background: "#020617",
     area: "#22D3EE33",
     negative: "#F472B6",
   )
 }
 
-/// Soft pastel palette, low-saturation foreground over a paper-white
-/// canvas.
+/// Soft violet on a paper-white canvas — low-key, design-focused.
 pub fn pastel() -> Theme {
   Theme(
     foreground: "#A78BFA",
     background: "#FAF5FF",
     area: "#A78BFA33",
+    negative: "#FB7185",
+  )
+}
+
+/// Saturated red on white — useful for losses, alerts, or
+/// "attention required" KPIs.
+pub fn crimson() -> Theme {
+  Theme(
+    foreground: "#DC2626",
+    background: "#FFFFFF",
+    area: "#DC262633",
+    negative: "#94A3B8",
+  )
+}
+
+/// Neutral slate grey on white — corporate, low-saturation, works
+/// alongside any brand colour without competing with it.
+pub fn slate() -> Theme {
+  Theme(
+    foreground: "#475569",
+    background: "#FFFFFF",
+    area: "#47556933",
+    negative: "#F59E0B",
+  )
+}
+
+/// Golden amber on white — popular for finance and "warning"
+/// indicators where red would be too strong.
+pub fn amber() -> Theme {
+  Theme(
+    foreground: "#F59E0B",
+    background: "#FFFFFF",
+    area: "#F59E0B33",
+    negative: "#DC2626",
+  )
+}
+
+/// Off-white foreground on deep navy — a dark-mode companion to
+/// `mono()`, for embedding into dark dashboards.
+pub fn midnight() -> Theme {
+  Theme(
+    foreground: "#F8FAFC",
+    background: "#020617",
+    area: "#F8FAFC29",
     negative: "#FB7185",
   )
 }
@@ -107,7 +150,7 @@ pub fn default() -> Theme {
     foreground: "currentColor",
     background: "none",
     area: "currentColor",
-    negative: "#E5484D",
+    negative: "#EF4444",
   )
 }
 

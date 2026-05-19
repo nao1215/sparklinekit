@@ -136,7 +136,7 @@ pub fn with_theme_paints_positive_bars_in_theme_color_test() {
     |> bar.with_theme(theme.sunset())
     |> bar.to_svg
   svg
-  |> string.contains("fill=\"#F76808\"")
+  |> string.contains("fill=\"#F97316\"")
   |> should.be_true
 }
 
@@ -146,7 +146,7 @@ pub fn with_theme_paints_negative_bars_in_negative_slot_test() {
     |> bar.with_theme(theme.forest())
     |> bar.to_svg
   svg
-  |> string.contains("fill=\"#E5484D\"")
+  |> string.contains("fill=\"#EF4444\"")
   |> should.be_true
 }
 

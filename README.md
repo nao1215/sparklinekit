@@ -55,6 +55,8 @@ pub fn print_latency(samples: List(Float)) -> Nil {
 
 ## SVG line
 
+![Themed line with smoothing, area fill, and end-point spot](docs/images/sparkline-line.png)
+
 ```gleam
 import sparklinekit/line
 
@@ -126,6 +128,10 @@ pub fn line_with_ints() -> String {
 
 ## SVG bar
 
+![Rounded amber bars on white](docs/images/sparkline-bar.png)
+
+![Mixed positive / negative bars sharing a zero baseline](docs/images/sparkline-mixed-bar.png)
+
 ```gleam
 import sparklinekit/bar
 
@@ -174,6 +180,13 @@ pub fn themed_win_loss() -> String {
 
 ## PNG output
 
+The same builders produce 8-bit RGBA PNG byte arrays via `to_png/1` —
+ready for `simplifile.write_bits` or `bit_array.base64_encode`.
+
+![Line rendered as PNG with anti-aliased stroke and area fill](docs/images/sparkline-line.png)
+
+![Bar rendered as PNG with rounded corners](docs/images/sparkline-bar.png)
+
 ```gleam
 import sparklinekit/line
 
@@ -212,7 +225,7 @@ pub fn save_to_disk() {
 
 ## Themes
 
-Six built-in colour schemes, each a bundle of four CSS colour
+Ten built-in colour schemes, each a bundle of four CSS colour
 strings (`foreground` / `background` / `area` / `negative`). Pass
 one to `line.with_theme` / `bar.with_theme` to set all four slots at
 once; chain `with_color` / `with_background_color` /
@@ -221,17 +234,21 @@ individual slots.
 
 | Theme | When to use | Foreground | Background | Negative | Preview |
 |---|---|---|---|---|---|
-| `theme.ocean()` | Default-ish blue, neutral dashboards | `#1F6FEB` | `#F0F6FF` | `#94A3B8` | ![ocean](docs/images/theme-ocean.png) |
-| `theme.forest()` | "Up" / growth, positive metrics | `#22A06B` | `#F2FBF5` | `#E5484D` | ![forest](docs/images/theme-forest.png) |
-| `theme.sunset()` | Attention, alerts, warm accents | `#F76808` | `#FFF7ED` | `#7E22CE` | ![sunset](docs/images/theme-sunset.png) |
-| `theme.mono()` | Print, monochrome dashboards | `#1F2937` | `#F9FAFB` | `#9CA3AF` | ![mono](docs/images/theme-mono.png) |
-| `theme.neon()` | Dark-mode UIs, high contrast | `#22D3EE` | `#0F172A` | `#F472B6` | ![neon](docs/images/theme-neon.png) |
+| `theme.ocean()` | Default-ish blue, neutral dashboards | `#2563EB` | `#FFFFFF` | `#94A3B8` | ![ocean](docs/images/theme-ocean.png) |
+| `theme.forest()` | "Up" / growth, finance-style green | `#10B981` | `#FFFFFF` | `#EF4444` | ![forest](docs/images/theme-forest.png) |
+| `theme.sunset()` | Attention, trending, warm accents | `#F97316` | `#FFFFFF` | `#7C3AED` | ![sunset](docs/images/theme-sunset.png) |
+| `theme.mono()` | Print, monochrome dashboards | `#0F172A` | `#FFFFFF` | `#94A3B8` | ![mono](docs/images/theme-mono.png) |
+| `theme.neon()` | Dark-mode UIs, high contrast | `#22D3EE` | `#020617` | `#F472B6` | ![neon](docs/images/theme-neon.png) |
 | `theme.pastel()` | Low-saturation, soft palettes | `#A78BFA` | `#FAF5FF` | `#FB7185` | ![pastel](docs/images/theme-pastel.png) |
+| `theme.crimson()` | Losses, alerts, "attention required" | `#DC2626` | `#FFFFFF` | `#94A3B8` | ![crimson](docs/images/theme-crimson.png) |
+| `theme.slate()` | Corporate neutral, brand-agnostic | `#475569` | `#FFFFFF` | `#F59E0B` | ![slate](docs/images/theme-slate.png) |
+| `theme.amber()` | Finance / warning, softer than red | `#F59E0B` | `#FFFFFF` | `#DC2626` | ![amber](docs/images/theme-amber.png) |
+| `theme.midnight()` | Dark-mode default, off-white on navy | `#F8FAFC` | `#020617` | `#FB7185` | ![midnight](docs/images/theme-midnight.png) |
 
 `theme.default()` is also available and applied implicitly when no
 `with_theme` call is made: `currentColor` foreground (inherits the
 surrounding CSS colour), no background fill, an auto-derived area
-tint, and `#E5484D` for negative bars.
+tint, and `#EF4444` for negative bars.
 
 ```gleam
 import sparklinekit/line

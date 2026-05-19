@@ -173,7 +173,7 @@ pub fn with_theme_overrides_stroke_to_theme_foreground_test() {
     |> line.with_theme(theme.ocean())
     |> line.to_svg
   svg
-  |> string.contains("stroke=\"#1F6FEB\"")
+  |> string.contains("stroke=\"#2563EB\"")
   |> should.be_true
 }
 

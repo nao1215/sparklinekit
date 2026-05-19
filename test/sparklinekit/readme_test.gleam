@@ -92,7 +92,7 @@ pub fn minimal_line_renders_svg_test() {
 
 pub fn themed_line_uses_ocean_stroke_test() {
   themed_line_sample()
-  |> string.contains("stroke=\"#1F6FEB\"")
+  |> string.contains("stroke=\"#2563EB\"")
   |> should.be_true
 }
 
@@ -170,7 +170,7 @@ pub fn win_loss_paints_positive_and_negative_colors_test() {
 
 pub fn themed_win_loss_uses_theme_negative_colour_test() {
   themed_win_loss_sample()
-  |> string.contains("fill=\"#E5484D\"")
+  |> string.contains("fill=\"#EF4444\"")
   |> should.be_true
 }
 

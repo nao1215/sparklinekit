@@ -47,7 +47,7 @@ pub fn main() -> Nil {
 
   let bar_builder =
     bar.new(bar_data)
-    |> bar.with_theme(theme.sunset())
+    |> bar.with_theme(theme.amber())
     |> bar.with_size(480, 120)
     |> bar.with_bar_gap(6.0)
     |> bar.with_corner_radius(4.0)
@@ -147,6 +147,10 @@ pub fn main() -> Nil {
   write_theme_preview(out_dir, "mono", theme.mono())
   write_theme_preview(out_dir, "neon", theme.neon())
   write_theme_preview(out_dir, "pastel", theme.pastel())
+  write_theme_preview(out_dir, "crimson", theme.crimson())
+  write_theme_preview(out_dir, "slate", theme.slate())
+  write_theme_preview(out_dir, "amber", theme.amber())
+  write_theme_preview(out_dir, "midnight", theme.midnight())
 
   io.println(
     "unicode: "
