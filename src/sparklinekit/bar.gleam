@@ -1,67 +1,123 @@
-//// SVG bar sparklines.
+//// SVG and PNG bar sparklines.
 ////
 //// ```gleam
 //// import sparklinekit/bar
+//// import sparklinekit/theme
 ////
 //// pub fn revenue() -> String {
 ////   bar.new([3.0, 7.0, 2.0, 9.0, 5.0])
-////   |> bar.with_color("#7F77DD")
-////   |> bar.with_size(160, 40)
-////   |> bar.to_string
+////   |> bar.with_theme(theme.sunset())
+////   |> bar.with_corner_radius(2.0)
+////   |> bar.to_svg
 //// }
 //// ```
 ////
 //// Positive and negative values share a zero baseline: positives
-//// rise above it, negatives fall below. All-positive input collapses
-//// the baseline onto the bottom of the box.
+//// rise above it, negatives fall below. `with_negative_color`
+//// paints the falling bars in a contrasting colour so win/loss
+//// charts read at a glance.
 
 import gleam/float
 import gleam/int
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/string_tree
+import sparklinekit/internal/color.{type Rgba}
+import sparklinekit/internal/png
+import sparklinekit/internal/raster
 import sparklinekit/internal/scale
+import sparklinekit/theme.{type Theme}
 
 const default_width: Int = 200
 
 const default_height: Int = 40
 
-const default_color: String = "currentColor"
-
 const default_gap: Float = 1.0
+
+const default_corner_radius: Float = 0.0
 
 /// Opaque builder for a bar sparkline.
 pub opaque type Builder {
   Builder(
     values: List(Float),
+    theme: Theme,
     color: String,
+    background: String,
+    negative_color: Option(String),
     width: Int,
     height: Int,
     gap: Float,
+    corner_radius: Float,
   )
 }
 
 /// Start a new bar sparkline builder.
 ///
-/// Defaults: 200x40 viewBox, `currentColor` fill, 1.0px gap between bars.
+/// Defaults: 200x40 viewBox, `currentColor` fill, 1.0px gap between
+/// bars, no rounded corners, no background.
 pub fn new(values: List(Float)) -> Builder {
+  let base = theme.default()
   Builder(
     values: values,
-    color: default_color,
+    theme: base,
+    color: theme.foreground(base),
+    background: theme.background(base),
+    negative_color: None,
     width: default_width,
     height: default_height,
     gap: default_gap,
+    corner_radius: default_corner_radius,
   )
 }
 
-/// Set the bar fill colour (any CSS colour string).
+/// Start a builder from a list of `Int` values.
+pub fn new_ints(values: List(Int)) -> Builder {
+  new(list.map(values, int.to_float))
+}
+
+/// Replace the data series after construction.
+pub fn with_values(builder: Builder, values: List(Float)) -> Builder {
+  Builder(..builder, values: values)
+}
+
+/// Replace the data series with a list of `Int`s.
+pub fn with_int_values(builder: Builder, values: List(Int)) -> Builder {
+  Builder(..builder, values: list.map(values, int.to_float))
+}
+
+/// Apply every colour slot from `theme`. The theme's `negative`
+/// colour is used for bars below the zero baseline; calling
+/// [`with_negative_color`](#with_negative_color) afterwards overrides
+/// just that slot.
+pub fn with_theme(builder: Builder, theme: Theme) -> Builder {
+  Builder(
+    ..builder,
+    theme: theme,
+    color: theme.foreground(theme),
+    background: theme.background(theme),
+    negative_color: Some(theme.negative(theme)),
+  )
+}
+
+/// Set the positive-bar fill colour (any CSS colour string).
 pub fn with_color(builder: Builder, color: String) -> Builder {
   Builder(..builder, color: color)
 }
 
-/// Set the viewBox dimensions in pixels.
-///
-/// Non-positive values are normalised to `1`.
+/// Set the background rectangle colour. `"none"` disables the
+/// background.
+pub fn with_background_color(builder: Builder, color: String) -> Builder {
+  Builder(..builder, background: color)
+}
+
+/// Use a separate colour for bars below the zero baseline.
+pub fn with_negative_color(builder: Builder, color: String) -> Builder {
+  Builder(..builder, negative_color: Some(color))
+}
+
+/// Set the viewBox / pixel dimensions. Non-positive values are
+/// normalised to `1`.
 pub fn with_size(builder: Builder, width: Int, height: Int) -> Builder {
   Builder(
     ..builder,
@@ -70,18 +126,42 @@ pub fn with_size(builder: Builder, width: Int, height: Int) -> Builder {
   )
 }
 
-/// Set the gap between adjacent bars in user units. The per-bar width
-/// is derived from the total width, bar count, and this gap.
-///
+/// Set the gap between adjacent bars in user units. The per-bar
+/// width is derived from the total width, bar count, and this gap.
 /// Negative values are clamped to `0.0`.
 pub fn with_bar_gap(builder: Builder, gap: Float) -> Builder {
   Builder(..builder, gap: non_negative_float(gap))
 }
 
-/// Render the builder to an SVG element string.
-pub fn to_string(builder: Builder) -> String {
-  let Builder(values, color, width, height, gap) = builder
-  let body = rect_body(values, width, height, color, gap)
+/// Set the corner radius in user units. The renderer clamps the
+/// radius to half the smaller side of each individual bar so the
+/// shape stays a rectangle / capsule rather than turning into a
+/// circle.
+pub fn with_corner_radius(builder: Builder, radius: Float) -> Builder {
+  Builder(..builder, corner_radius: non_negative_float(radius))
+}
+
+/// Render the builder to a self-contained `<svg>` element string.
+pub fn to_svg(builder: Builder) -> String {
+  let Builder(
+    values,
+    theme,
+    color,
+    background,
+    negative_color,
+    width,
+    height,
+    gap,
+    radius,
+  ) = builder
+  let negative_color = case negative_color {
+    Some(c) -> c
+    None -> color
+  }
+  let _ = theme
+  let bg_layer = background_rect(width, height, background)
+  let bars =
+    rect_body(values, width, height, color, negative_color, gap, radius)
   string_tree.new()
   |> string_tree.append(
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ",
@@ -90,9 +170,62 @@ pub fn to_string(builder: Builder) -> String {
   |> string_tree.append(" ")
   |> string_tree.append(int.to_string(height))
   |> string_tree.append("\" preserveAspectRatio=\"none\">")
-  |> string_tree.append_tree(body)
+  |> string_tree.append_tree(bg_layer)
+  |> string_tree.append_tree(bars)
   |> string_tree.append("</svg>")
   |> string_tree.to_string
+}
+
+/// Backwards-compatible alias for [`to_svg`](#to_svg).
+pub fn to_string(builder: Builder) -> String {
+  to_svg(builder)
+}
+
+/// Render the builder to PNG bytes (8-bit RGBA truecolor). The
+/// viewBox dimensions double as the pixel size.
+pub fn to_png(builder: Builder) -> BitArray {
+  let Builder(
+    values,
+    theme,
+    color,
+    background,
+    negative_color,
+    width,
+    height,
+    gap,
+    radius,
+  ) = builder
+  let fg = parse_string_colour(color, theme.foreground(theme))
+  let neg = case negative_color {
+    Some(c) -> parse_string_colour(c, theme.negative(theme))
+    None -> fg
+  }
+  let bg = case background {
+    "none" -> color.transparent
+    other -> parse_string_colour_or(other, color.transparent)
+  }
+  let canvas = raster.new(width, height, bg)
+  let canvas = paint_bars(canvas, values, width, height, fg, neg, gap, radius)
+  png.encode(raster.to_grid(canvas), width: width, height: height)
+}
+
+fn background_rect(
+  width: Int,
+  height: Int,
+  background: String,
+) -> string_tree.StringTree {
+  case background == "none" || background == "" {
+    True -> string_tree.new()
+    False ->
+      string_tree.new()
+      |> string_tree.append("<rect x=\"0\" y=\"0\" width=\"")
+      |> string_tree.append(int.to_string(width))
+      |> string_tree.append("\" height=\"")
+      |> string_tree.append(int.to_string(height))
+      |> string_tree.append("\" fill=\"")
+      |> string_tree.append(escape_attribute(background))
+      |> string_tree.append("\"/>")
+  }
 }
 
 fn rect_body(
@@ -100,80 +233,132 @@ fn rect_body(
   width: Int,
   height: Int,
   color: String,
+  negative_color: String,
   gap: Float,
+  radius: Float,
 ) -> string_tree.StringTree {
   case values {
     [] -> string_tree.new()
     _ -> {
-      let count = list.length(values)
-      let width_f = int.to_float(width)
-      let height_f = int.to_float(height)
-      let step = width_f /. int.to_float(count)
-      let bar_w = case step -. gap >. 0.0 {
-        True -> step -. gap
-        False -> step
-      }
-      let #(lo, hi) = scale.min_max(values)
-      let #(y_min, y_max) = effective_range(lo, hi)
-      let span = y_max -. y_min
-      let baseline_y = baseline_y(height_f, y_min, span)
-      let fill = escape_attribute(color)
-      let #(parts, _) =
-        list.fold(values, #([], 0), fn(acc, value) {
-          let #(rects, i) = acc
-          let x = int.to_float(i) *. step
-          let rect =
-            render_rect(
-              x,
-              bar_w,
-              value,
-              y_min,
-              span,
-              baseline_y,
-              height_f,
-              fill,
-            )
-          #([rect, ..rects], i + 1)
-        })
-      parts
-      |> list.reverse
-      |> list.fold(string_tree.new(), fn(tree, piece) {
-        string_tree.append(tree, piece)
+      let layout = compute_layout(values, width, height, gap)
+      let pos_fill = escape_attribute(color)
+      let neg_fill = escape_attribute(negative_color)
+      list.fold(layout.rects, string_tree.new(), fn(tree, rect) {
+        let fill = case rect.value <. 0.0 {
+          True -> neg_fill
+          False -> pos_fill
+        }
+        string_tree.append(tree, render_rect_svg(rect, fill, radius))
       })
     }
   }
 }
 
-fn render_rect(
-  x: Float,
-  bar_w: Float,
-  value: Float,
-  y_min: Float,
-  span: Float,
-  baseline_y: Float,
-  height_f: Float,
-  fill: String,
-) -> String {
-  let y_value = y_coord(value, y_min, span, height_f)
-  let #(rect_y, rect_h) = case value >=. 0.0 {
-    True -> #(y_value, baseline_y -. y_value)
-    False -> #(baseline_y, y_value -. baseline_y)
-  }
-  let safe_h = case rect_h >. 0.0 {
-    True -> rect_h
-    False -> 0.0
+fn render_rect_svg(rect: Rect, fill: String, radius: Float) -> String {
+  let r =
+    radius
+    |> float.min(rect.width /. 2.0)
+    |> float.min(rect.height /. 2.0)
+    |> float.max(0.0)
+  let radius_attr = case r >. 0.0 {
+    False -> ""
+    True -> " rx=\"" <> float.to_string(r) <> "\""
   }
   "<rect x=\""
-  <> float.to_string(x)
+  <> float.to_string(rect.x)
   <> "\" y=\""
-  <> float.to_string(rect_y)
+  <> float.to_string(rect.y)
   <> "\" width=\""
-  <> float.to_string(bar_w)
+  <> float.to_string(rect.width)
   <> "\" height=\""
-  <> float.to_string(safe_h)
+  <> float.to_string(rect.height)
   <> "\" fill=\""
   <> fill
-  <> "\"/>"
+  <> "\""
+  <> radius_attr
+  <> "/>"
+}
+
+type Rect {
+  Rect(x: Float, y: Float, width: Float, height: Float, value: Float)
+}
+
+type Layout {
+  Layout(rects: List(Rect))
+}
+
+fn compute_layout(
+  values: List(Float),
+  width: Int,
+  height: Int,
+  gap: Float,
+) -> Layout {
+  let width_f = int.to_float(width)
+  let height_f = int.to_float(height)
+  let count = list.length(values)
+  let step = width_f /. int.to_float(count)
+  let bar_w = case step -. gap >. 0.0 {
+    True -> step -. gap
+    False -> step
+  }
+  let #(lo, hi) = scale.min_max(values)
+  let #(y_min, y_max) = effective_range(lo, hi)
+  let span = y_max -. y_min
+  let baseline_y = baseline_y(height_f, y_min, span)
+  let #(rects, _) =
+    list.fold(values, #([], 0), fn(acc, value) {
+      let #(rs, i) = acc
+      let x = int.to_float(i) *. step
+      let y_value = y_coord(value, y_min, span, height_f)
+      let #(rect_y, rect_h) = case value >=. 0.0 {
+        True -> #(y_value, baseline_y -. y_value)
+        False -> #(baseline_y, y_value -. baseline_y)
+      }
+      let safe_h = case rect_h >. 0.0 {
+        True -> rect_h
+        False -> 0.0
+      }
+      #(
+        [
+          Rect(x: x, y: rect_y, width: bar_w, height: safe_h, value: value),
+          ..rs
+        ],
+        i + 1,
+      )
+    })
+  Layout(rects: list.reverse(rects))
+}
+
+fn paint_bars(
+  canvas: raster.Canvas,
+  values: List(Float),
+  width: Int,
+  height: Int,
+  fg: Rgba,
+  neg: Rgba,
+  gap: Float,
+  radius: Float,
+) -> raster.Canvas {
+  let layout = compute_layout(values, width, height, gap)
+  list.fold(layout.rects, canvas, fn(c, rect) {
+    let colour = case rect.value <. 0.0 {
+      True -> neg
+      False -> fg
+    }
+    case rect.height <=. 0.0 {
+      True -> c
+      False ->
+        raster.fill_rounded_rect(
+          c,
+          rect.x,
+          rect.y,
+          rect.width,
+          rect.height,
+          radius,
+          colour,
+        )
+    }
+  })
 }
 
 fn effective_range(lo: Float, hi: Float) -> #(Float, Float) {
@@ -218,4 +403,18 @@ fn escape_attribute(value: String) -> String {
   |> string.replace("\"", "&quot;")
   |> string.replace("<", "&lt;")
   |> string.replace(">", "&gt;")
+}
+
+fn parse_string_colour(value: String, theme_fallback: String) -> Rgba {
+  case color.parse_hex(value) {
+    Ok(rgba) -> rgba
+    Error(_) -> color.parse_or(theme_fallback, fallback: color.black)
+  }
+}
+
+fn parse_string_colour_or(value: String, fallback: Rgba) -> Rgba {
+  case color.parse_hex(value) {
+    Ok(rgba) -> rgba
+    Error(_) -> fallback
+  }
 }

@@ -33,6 +33,8 @@ const middle_index: Int = 3
 /// - All-equal inputs produce a string of middle-level blocks.
 /// - Otherwise each value is mapped into one of eight levels by
 ///   normalising against the observed minimum and maximum.
+///
+/// Use [`render_ints`](#render_ints) if your data series is `List(Int)`.
 pub fn render(values: List(Float)) -> String {
   case values {
     [] -> ""
@@ -51,6 +53,12 @@ pub fn render(values: List(Float)) -> String {
       }
     }
   }
+}
+
+/// Convenience wrapper around [`render/1`](#render) for `List(Int)`
+/// inputs. Equivalent to `render(list.map(values, int.to_float))`.
+pub fn render_ints(values: List(Int)) -> String {
+  render(list.map(values, int.to_float))
 }
 
 fn middle_block() -> String {

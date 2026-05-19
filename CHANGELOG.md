@@ -8,6 +8,51 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ## Unreleased
 
+### Added
+
+- `to_png` on both `sparklinekit/line` and `sparklinekit/bar`,
+  returning a `BitArray` of 8-bit RGBA truecolor PNG bytes encoded
+  in pure Gleam (no NIF, no `libpng`). Line strokes use Xiaolin Wu
+  anti-aliasing; rounded bars carry their corner radius into the
+  raster output.
+- `sparklinekit/theme` — six bundled colour schemes (`ocean`,
+  `forest`, `sunset`, `mono`, `neon`, `pastel`) plus
+  `theme.default()`. Apply one with `line.with_theme` /
+  `bar.with_theme` or override individual slots with
+  `with_color`, `with_background_color`, `with_area_color`, and
+  `with_negative_color`.
+- `line.with_area_fill` / `line.with_area_color` — paint a tinted
+  area under the line, derived from the stroke colour or set
+  explicitly.
+- `bar.with_corner_radius` and `bar.with_negative_color` —
+  rounded bars and a distinct colour for bars below the zero
+  baseline.
+- `line.with_background_color` / `bar.with_background_color` —
+  paint a solid background rectangle behind the chart (`"none"`
+  disables it).
+- `unicode.render_ints`, `line.new_ints`, `bar.new_ints`,
+  `line.with_int_values`, `bar.with_int_values` — `List(Int)`
+  variants so callers no longer need to convert with
+  `list.map(_, int.to_float)`.
+- `line.to_svg` / `bar.to_svg` as the preferred names for the SVG
+  renderers; `to_string` is kept as a backwards-compatible alias.
+- Internal modules `sparklinekit/internal/color`,
+  `sparklinekit/internal/png`, and
+  `sparklinekit/internal/raster` covering hex-colour parsing /
+  blending, PNG encoding (CRC32 + Adler32 + DEFLATE store
+  blocks), and the sparse canvas used by `to_png`.
+
+### Changed
+
+- README rewritten to lead with the elevator pitch and three
+  inline samples; the Lustre, oaspec, scope, target, and roadmap
+  sections are gone. Targets now sit in a single sentence at the
+  end of the document.
+- Sample images in `docs/images/` regenerated using the new
+  themed renderer (`ocean` for the line chart, `sunset` for the
+  positive bars, `forest` with the contrasting negative colour
+  for the mixed bars).
+
 ## [0.1.0] - 2026-05-19
 
 ### Added

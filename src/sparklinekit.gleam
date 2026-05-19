@@ -2,35 +2,48 @@
 ////
 //// Renderers live in dedicated modules:
 ////
-//// - [`sparklinekit/unicode`](./sparklinekit/unicode.html) for terminal
-////   output using the Unicode block characters `▁▂▃▄▅▆▇█`.
-//// - [`sparklinekit/line`](./sparklinekit/line.html) for SVG polyline
-////   sparklines.
-//// - [`sparklinekit/bar`](./sparklinekit/bar.html) for SVG bar sparklines.
+//// - [`sparklinekit/unicode`](./sparklinekit/unicode.html) for
+////   terminal output using the eight Unicode block characters
+////   `▁▂▃▄▅▆▇█`.
+//// - [`sparklinekit/line`](./sparklinekit/line.html) for SVG and PNG
+////   line sparklines (`to_svg` / `to_png`).
+//// - [`sparklinekit/bar`](./sparklinekit/bar.html) for SVG and PNG
+////   bar sparklines (`to_svg` / `to_png`).
+//// - [`sparklinekit/theme`](./sparklinekit/theme.html) for the
+////   bundled colour schemes (`ocean`, `forest`, `sunset`, `mono`,
+////   `neon`, `pastel`).
 ////
 //// ```gleam
 //// import sparklinekit/bar
 //// import sparklinekit/line
+//// import sparklinekit/theme
 //// import sparklinekit/unicode
 ////
-//// pub fn examples() -> #(String, String, String) {
-////   let u = unicode.render([1.0, 5.0, 22.0, 13.0, 5.0, 2.0, 7.0])
+//// pub fn examples() -> #(String, String, String, BitArray) {
+////   let u = unicode.render_ints([1, 5, 22, 13, 5, 2, 7])
 ////   let l =
-////     line.new([1.0, 5.0, 3.0, 8.0, 4.0])
-////     |> line.with_color("#378ADD")
-////     |> line.to_string
+////     line.new_ints([1, 5, 3, 8, 4])
+////     |> line.with_theme(theme.ocean())
+////     |> line.with_area_fill(True)
+////     |> line.to_svg
 ////   let b =
-////     bar.new([3.0, 7.0, 2.0, 9.0, 5.0])
-////     |> bar.with_color("#7F77DD")
-////     |> bar.to_string
-////   #(u, l, b)
+////     bar.new_ints([3, 7, 2, 9, 5])
+////     |> bar.with_theme(theme.sunset())
+////     |> bar.with_corner_radius(2.0)
+////     |> bar.to_svg
+////   let p =
+////     line.new_ints([1, 5, 3, 8, 4])
+////     |> line.with_theme(theme.ocean())
+////     |> line.with_area_fill(True)
+////     |> line.to_png
+////   #(u, l, b, p)
 //// }
 //// ```
 
 /// The package version, kept in sync with `gleam.toml`.
 ///
-/// Releases that bump `gleam.toml` without bumping this constant (or vice
-/// versa) are caught by `package_version_test`.
+/// Releases that bump `gleam.toml` without bumping this constant (or
+/// vice versa) are caught by `package_version_test`.
 pub fn package_version() -> String {
   "0.1.0"
 }

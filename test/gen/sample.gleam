@@ -1,16 +1,18 @@
-//// Standalone generator used to refresh the README example SVGs.
+//// Standalone generator used to refresh the README example assets.
 ////
 ////   gleam run --module gen/sample
 ////
-//// Writes three SVGs under `docs/images/` and prints a one-line summary
-//// of the Unicode example to stdout. The renderer never touches the
-//// network or runs at test time.
+//// Writes themed SVG and PNG copies of three sample charts under
+//// `docs/images/` and prints a one-line summary of the Unicode
+//// example to stdout. The renderer never touches the network or
+//// runs at test time.
 
 import gleam/int
 import gleam/io
 import simplifile
 import sparklinekit/bar
 import sparklinekit/line
+import sparklinekit/theme
 import sparklinekit/unicode
 
 const line_data: List(Float) = [
@@ -25,30 +27,57 @@ const unicode_data: List(Float) = [1.0, 5.0, 22.0, 13.0, 5.0, 2.0, 7.0]
 
 pub fn main() -> Nil {
   let out_dir = "docs/images"
-  let line_svg =
+
+  let line_builder =
     line.new(line_data)
-    |> line.with_color("#378ADD")
-    |> line.with_size(240, 60)
-    |> line.with_stroke_width(2.0)
-    |> line.to_string
-  let bar_svg =
+    |> line.with_theme(theme.ocean())
+    |> line.with_size(360, 90)
+    |> line.with_stroke_width(2.5)
+    |> line.with_area_fill(True)
+
+  let bar_builder =
     bar.new(bar_data)
-    |> bar.with_color("#7F77DD")
-    |> bar.with_size(240, 60)
-    |> bar.with_bar_gap(3.0)
-    |> bar.to_string
-  let mixed_bar_svg =
-    bar.new(mixed_bar_data)
-    |> bar.with_color("#DD7755")
-    |> bar.with_size(240, 60)
+    |> bar.with_theme(theme.sunset())
+    |> bar.with_size(360, 90)
     |> bar.with_bar_gap(4.0)
-    |> bar.to_string
+    |> bar.with_corner_radius(3.0)
+
+  let mixed_bar_builder =
+    bar.new(mixed_bar_data)
+    |> bar.with_theme(theme.forest())
+    |> bar.with_size(360, 90)
+    |> bar.with_bar_gap(6.0)
+    |> bar.with_corner_radius(3.0)
+
   let assert Ok(Nil) =
-    simplifile.write(out_dir <> "/sparkline-line.svg", line_svg)
+    simplifile.write(
+      out_dir <> "/sparkline-line.svg",
+      line.to_svg(line_builder),
+    )
   let assert Ok(Nil) =
-    simplifile.write(out_dir <> "/sparkline-bar.svg", bar_svg)
+    simplifile.write(out_dir <> "/sparkline-bar.svg", bar.to_svg(bar_builder))
   let assert Ok(Nil) =
-    simplifile.write(out_dir <> "/sparkline-mixed-bar.svg", mixed_bar_svg)
+    simplifile.write(
+      out_dir <> "/sparkline-mixed-bar.svg",
+      bar.to_svg(mixed_bar_builder),
+    )
+
+  let assert Ok(Nil) =
+    simplifile.write_bits(
+      out_dir <> "/sparkline-line.png",
+      line.to_png(line_builder),
+    )
+  let assert Ok(Nil) =
+    simplifile.write_bits(
+      out_dir <> "/sparkline-bar.png",
+      bar.to_png(bar_builder),
+    )
+  let assert Ok(Nil) =
+    simplifile.write_bits(
+      out_dir <> "/sparkline-mixed-bar.png",
+      bar.to_png(mixed_bar_builder),
+    )
+
   io.println(
     "unicode: "
     <> unicode.render(unicode_data)

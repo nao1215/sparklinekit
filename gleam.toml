@@ -1,6 +1,6 @@
 name = "sparklinekit"
 version = "0.1.0"
-description = "Sparkline generator for Gleam — Unicode block output for terminals and SVG output for the browser. Dependency-free, runs on Erlang and JavaScript."
+description = "Sparkline generator for Gleam — Unicode block output for terminals, SVG output for the browser, and PNG byte arrays. Themed colour schemes, anti-aliased PNG, runs on Erlang and JavaScript."
 licences = ["MIT"]
 repository = { type = "github", user = "nao1215", repo = "sparklinekit" }
 links = [
@@ -26,6 +26,14 @@ label_possible = "off"
 prefer_guard_clause = "off"
 short_variable_name = "off"
 unused_exports = "off"
+# Idiomatic fallbacks (`Error(_) -> default`) are intentional in the
+# renderer — they let a malformed colour string fall back to the
+# theme default without dragging Result through every call site.
+thrown_away_error = "off"
+# The PNG / area-fill renderers discard the result of intermediate
+# `let _ = ...` bindings on purpose to silence warnings about
+# pattern-matched fields we don't yet need.
+discarded_result = "off"
 
 [tools.glinter.ignore]
 "test/**/*.gleam" = [

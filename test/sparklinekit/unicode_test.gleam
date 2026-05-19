@@ -31,6 +31,11 @@ pub fn negative_values_normalise_against_observed_range_test() {
   |> should.equal("▁▅█")
 }
 
+pub fn render_ints_matches_render_floats_test() {
+  unicode.render_ints([1, 5, 22, 13, 5, 2, 7])
+  |> should.equal(unicode.render([1.0, 5.0, 22.0, 13.0, 5.0, 2.0, 7.0]))
+}
+
 pub fn wikipedia_example_test() {
   // The Wikipedia article on sparklines uses [1, 5, 22, 13, 5, 2, 7]
   // as its illustrative payload; the package description leads with it,

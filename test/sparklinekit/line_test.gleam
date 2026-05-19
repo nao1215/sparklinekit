@@ -1,6 +1,7 @@
 import gleam/string
 import gleeunit/should
 import sparklinekit/line
+import sparklinekit/theme
 
 pub fn empty_input_produces_svg_without_polyline_test() {
   let svg = line.new([]) |> line.to_string
@@ -117,5 +118,85 @@ pub fn non_positive_size_is_clamped_to_one_test() {
     |> line.to_string
   svg
   |> string.contains("viewBox=\"0 0 1 1\"")
+  |> should.be_true
+}
+
+pub fn new_ints_matches_new_with_floats_test() {
+  let from_ints =
+    line.new_ints([1, 5, 3, 8, 4])
+    |> line.to_svg
+  let from_floats =
+    line.new([1.0, 5.0, 3.0, 8.0, 4.0])
+    |> line.to_svg
+  from_ints |> should.equal(from_floats)
+}
+
+pub fn to_svg_is_alias_for_to_string_test() {
+  let builder = line.new([1.0, 2.0, 3.0])
+  line.to_svg(builder) |> should.equal(line.to_string(builder))
+}
+
+pub fn with_theme_overrides_stroke_to_theme_foreground_test() {
+  let svg =
+    line.new([1.0, 2.0, 3.0])
+    |> line.with_theme(theme.ocean())
+    |> line.to_svg
+  svg
+  |> string.contains("stroke=\"#1F6FEB\"")
+  |> should.be_true
+}
+
+pub fn with_theme_paints_background_rectangle_test() {
+  let svg =
+    line.new([1.0, 2.0, 3.0])
+    |> line.with_theme(theme.ocean())
+    |> line.to_svg
+  svg
+  |> string.contains("<rect")
+  |> should.be_true
+}
+
+pub fn default_theme_omits_background_rectangle_test() {
+  let svg = line.new([1.0, 2.0, 3.0]) |> line.to_svg
+  svg
+  |> string.contains("<rect")
+  |> should.be_false
+}
+
+pub fn with_area_fill_adds_polygon_test() {
+  let svg =
+    line.new([1.0, 2.0, 3.0])
+    |> line.with_theme(theme.ocean())
+    |> line.with_area_fill(True)
+    |> line.to_svg
+  svg
+  |> string.contains("<polygon")
+  |> should.be_true
+}
+
+pub fn area_fill_off_by_default_test() {
+  let svg = line.new([1.0, 2.0, 3.0]) |> line.to_svg
+  svg
+  |> string.contains("<polygon")
+  |> should.be_false
+}
+
+pub fn with_area_color_uses_explicit_fill_test() {
+  let svg =
+    line.new([1.0, 2.0, 3.0])
+    |> line.with_area_color("#112233")
+    |> line.to_svg
+  svg
+  |> string.contains("fill=\"#112233\"")
+  |> should.be_true
+}
+
+pub fn with_background_color_renders_rect_test() {
+  let svg =
+    line.new([1.0, 2.0, 3.0])
+    |> line.with_background_color("#FAFAFA")
+    |> line.to_svg
+  svg
+  |> string.contains("fill=\"#FAFAFA\"")
   |> should.be_true
 }
