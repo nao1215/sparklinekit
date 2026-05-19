@@ -1,5 +1,5 @@
 name = "sparklinekit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Sparkline generator for Gleam — Unicode block output for terminals, SVG output for the browser, and PNG byte arrays. Themed colour schemes, anti-aliased PNG, runs on Erlang and JavaScript."
 licences = ["MIT"]
 repository = { type = "github", user = "nao1215", repo = "sparklinekit" }

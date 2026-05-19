@@ -6,6 +6,82 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
+## [0.2.0] - 2026-05-20
+
+Bug-hunt release. The public API surface is unchanged from 0.1.0;
+every visible difference is a defect the v0.1.0 renderer silently
+shipped. Two systematic QA rounds (PR #3, PR #4) added ten new
+regression tests under `test/sparklinekit/qa/` covering each
+defect and the property it now satisfies.
+
+### Fixed
+
+#### Behavioural defects
+
+- `line.with_area_fill(False)` no longer destroys a prior
+  `line.with_area_color(c)`. The toggle is now a pure
+  enable / disable; the explicit colour survives across a
+  disable / re-enable round-trip.
+- `bar.new` (no explicit theme) now honours
+  `theme.default().negative` (`#EF4444`) for negative-bar
+  fill. Previously the default theme's negative slot was
+  declared but never applied, leaving mixed-sign charts
+  visually identical for positives and negatives unless
+  `with_theme(...)` was called.
+- Zero-value bars now render as a 1-pixel hairline at the
+  baseline instead of collapsing to a `height="0.0"` rect.
+  A reader can distinguish "value was zero here" from
+  "value missing here". The hairline grows *into* the
+  canvas, so it stays inside the viewBox even when the
+  baseline pins to a canvas edge (all-positive or
+  all-negative input).
+- `line.with_area_color("rgb(255, 0, 0)")` (or any non-hex
+  CSS colour string) no longer gets silently substituted by
+  the stroke colour or by black when the default gradient is
+  enabled. The renderer drops the gradient and emits a solid
+  fill with the user's literal CSS colour.
+- Default theme (`currentColor` stroke) plus
+  `line.with_area_fill(True)` now produces an area that
+  inherits the surrounding CSS colour via
+  `fill="currentColor"` and `fill-opacity="0.22"`, instead
+  of the previous hardcoded black gradient stops.
+
+#### Totality on adversarial input
+
+- `unicode.render`, `line.to_svg`, and `bar.to_svg` no longer
+  raise `arithmetic_error` (Erlang) or emit `Infinity` /
+  `NaN` coordinates (JavaScript) for extreme `List(Float)`
+  input. `scale.unit` clamps to `±1.0e300` before subtraction
+  so the intermediate `max - min` stays inside the IEEE 754
+  double range; `bar.compute_layout` clamps each per-bar
+  value the same way.
+- `line.with_stroke_width(very_large)` is clamped to
+  `≤ 1.0e4` at the setter, so the PNG raster's per-pixel
+  perpendicular sweep cannot stall the renderer. The SVG
+  side is additionally guarded by a `±1.0e6` clamp inside
+  `format.coord` against any other adversarial coordinate.
+- `line.with_spot(very_large)` is clamped to `[0.0, 1.0e4]`
+  at the setter, so the disc fill's bounding-square iteration
+  cannot stall the PNG path.
+
+### Removed
+
+- Deprecated `line.to_string` / `bar.to_string` aliases for
+  `to_svg`. Both were introduced before the first public
+  release; since v0.1.0 was the first version on Hex there
+  is no prior caller to stay compatible with.
+
+### Documentation
+
+- `test/sparklinekit/qa/` — six modules (`property_test`,
+  `fuzz_test`, `metamorphic_test`, `boundary_test`,
+  `snapshot_test`, `differential_test`) plus the two
+  round-by-round regression suites (`deep_test`,
+  `deep2_test`) bring the QA harness to 219 tests on each
+  target.
+
+[0.2.0]: https://github.com/nao1215/sparklinekit/releases/tag/v0.2.0
+
 ## [0.1.0] - 2026-05-19
 
 Initial public release. Pure Gleam, zero runtime dependencies
