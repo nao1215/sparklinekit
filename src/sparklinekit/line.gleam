@@ -44,6 +44,17 @@ const default_spot_radius: Float = 0.0
 
 const bezier_samples_per_segment: Int = 16
 
+/// Upper clamp for `with_stroke_width` and `with_spot`. The values
+/// flow directly into the raster's per-pixel perpendicular sweep
+/// (Wu line drawing for the stroke, disc fill for the spot); a
+/// huge input would iterate billions of pixels and stall the
+/// renderer. Beyond ~`canvas_dim` neither attribute renders
+/// meaningfully anyway, so a high but finite cap is a safe
+/// invariant for both targets.
+const max_stroke_width: Float = 1.0e4
+
+const max_spot_radius: Float = 1.0e4
+
 /// What kind of area-fill — if any — should be painted under the
 /// line. Kept private so the slot can grow without affecting
 /// callers; toggle it via [`with_area_fill/2`](#with_area_fill) and
@@ -151,8 +162,12 @@ pub fn with_smoothing(builder: Builder, factor: Float) -> Builder {
 
 /// Draw a filled circle at the last data point. `radius` of `0.0`
 /// turns the spot off (the default).
+///
+/// Values are clamped to `[0.0, 1.0e4]` so an adversarial radius
+/// cannot stall the raster's disc fill (which iterates the bounding
+/// square pixel-by-pixel).
 pub fn with_spot(builder: Builder, radius: Float) -> Builder {
-  Builder(..builder, spot_radius: non_negative_float(radius))
+  Builder(..builder, spot_radius: clamp_spot_radius(radius))
 }
 
 /// Override the colour used for the spot. Defaults to the stroke
@@ -223,9 +238,14 @@ pub fn with_size(builder: Builder, width: Int, height: Int) -> Builder {
 }
 
 /// Set the stroke width in user units. Non-positive values fall
-/// back to a hairline (`0.5`).
+/// back to a hairline (`0.5`); excessively large values are clamped
+/// to `1.0e4` so the raster's per-pixel perpendicular sweep cannot
+/// stall the renderer.
 pub fn with_stroke_width(builder: Builder, stroke_width: Float) -> Builder {
-  Builder(..builder, stroke_width: positive_float_or(stroke_width, 0.5))
+  Builder(
+    ..builder,
+    stroke_width: clamp_stroke_width(positive_float_or(stroke_width, 0.5)),
+  )
 }
 
 /// Render the builder to a self-contained `<svg>` element string.
@@ -361,12 +381,11 @@ fn gradient_defs_svg(
   builder: Builder,
   points: List(#(Float, Float)),
 ) -> string_tree.StringTree {
-  case effective_area(builder), builder.gradient_area, points {
-    NoArea, _, _ -> string_tree.new()
-    _, False, _ -> string_tree.new()
-    _, _, [] -> string_tree.new()
-    _, _, [_] -> string_tree.new()
-    _, True, _ -> {
+  case should_use_gradient(builder), points {
+    False, _ -> string_tree.new()
+    _, [] -> string_tree.new()
+    _, [_] -> string_tree.new()
+    True, _ -> {
       let top = gradient_top_colour(builder)
       let bottom = color.with_alpha(top, factor: 0.0)
       let top_attr = color.to_hex_rgba(top)
@@ -386,6 +405,60 @@ fn gradient_defs_svg(
   }
 }
 
+/// Decide whether the SVG output should emit a `<linearGradient>` and
+/// reference it via `url(#...)`. The gradient stops are hex literals,
+/// so we can only produce a meaningful gradient when the area colour
+/// — or its derivation source — actually parses as hex.
+fn should_use_gradient(builder: Builder) -> Bool {
+  case builder.gradient_area, effective_area(builder) {
+    False, _ -> False
+    _, NoArea -> False
+    True, AreaExplicit(c) ->
+      case color.parse_hex(c) {
+        Ok(_) -> True
+        Error(_) -> False
+      }
+    True, AreaAuto ->
+      case color.parse_hex(theme.area(builder.theme)) {
+        Ok(_) -> True
+        Error(_) ->
+          case color.parse_hex(builder.color) {
+            Ok(_) -> True
+            Error(_) -> False
+          }
+      }
+  }
+}
+
+/// Resolve the `fill` attribute string and an optional
+/// `fill-opacity` fragment for the area path. The opacity fragment
+/// is non-empty only when the area colour is a CSS keyword such as
+/// `currentColor` that can't carry alpha inside its own hex form —
+/// in that case the renderer emits the literal colour and a
+/// separate `fill-opacity` so the area still looks translucent.
+fn area_fill_pair(builder: Builder) -> #(String, String) {
+  case should_use_gradient(builder) {
+    True -> #("url(#" <> gradient_id(builder) <> ")", "")
+    False -> non_gradient_area_fill(builder)
+  }
+}
+
+fn non_gradient_area_fill(builder: Builder) -> #(String, String) {
+  case effective_area(builder) {
+    NoArea -> #(escape_attribute(builder.color), "")
+    AreaExplicit(c) -> #(escape_attribute(c), "")
+    AreaAuto ->
+      case color.parse_hex(builder.color) {
+        Ok(_) -> #(escape_attribute(auto_area_color(builder.color)), "")
+        Error(_) -> {
+          let opacity_attr =
+            " fill-opacity=\"" <> float.to_string(default_area_alpha) <> "\""
+          #(escape_attribute(builder.color), opacity_attr)
+        }
+      }
+  }
+}
+
 fn area_svg(
   builder: Builder,
   points: List(#(Float, Float)),
@@ -394,21 +467,8 @@ fn area_svg(
     NoArea, _ -> string_tree.new()
     _, [] -> string_tree.new()
     _, [_] -> string_tree.new()
-    mode, _ -> {
-      // The gradient URL is internally generated and contains no
-      // attacker-controlled characters, but the raw colour-string
-      // branches below echo a user-supplied value back into an SVG
-      // attribute and must be escaped to match the behaviour of
-      // `stroke_svg` and `background_rect`.
-      let fill_attr = case builder.gradient_area {
-        True -> "url(#" <> gradient_id(builder) <> ")"
-        False ->
-          case mode {
-            AreaExplicit(c) -> escape_attribute(c)
-            AreaAuto -> escape_attribute(auto_area_color(builder.color))
-            NoArea -> escape_attribute(builder.color)
-          }
-      }
+    _, _ -> {
+      let #(fill_attr, opacity_attr) = area_fill_pair(builder)
       let d = path_data(points, builder.smoothing)
       let bottom = int.to_float(builder.height)
       let last_x = case last_point(points) {
@@ -432,7 +492,9 @@ fn area_svg(
       string_tree.new()
       |> string_tree.append("<path fill=\"")
       |> string_tree.append(fill_attr)
-      |> string_tree.append("\" stroke=\"none\" d=\"")
+      |> string_tree.append("\"")
+      |> string_tree.append(opacity_attr)
+      |> string_tree.append(" stroke=\"none\" d=\"")
       |> string_tree.append(d)
       |> string_tree.append(close)
       |> string_tree.append("\"/>")
@@ -904,10 +966,21 @@ fn do_int_range(current: Int, lo: Int, acc: List(Int)) -> List(Int) {
   }
 }
 
-fn non_negative_float(value: Float) -> Float {
+fn clamp_stroke_width(value: Float) -> Float {
+  case value >. max_stroke_width {
+    True -> max_stroke_width
+    False -> value
+  }
+}
+
+fn clamp_spot_radius(value: Float) -> Float {
   case value <. 0.0 {
     True -> 0.0
-    False -> value
+    False ->
+      case value >. max_spot_radius {
+        True -> max_spot_radius
+        False -> value
+      }
   }
 }
 
