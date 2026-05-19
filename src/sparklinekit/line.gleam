@@ -357,13 +357,18 @@ fn area_svg(
     _, [] -> string_tree.new()
     _, [_] -> string_tree.new()
     mode, _ -> {
+      // The gradient URL is internally generated and contains no
+      // attacker-controlled characters, but the raw colour-string
+      // branches below echo a user-supplied value back into an SVG
+      // attribute and must be escaped to match the behaviour of
+      // `stroke_svg` and `background_rect`.
       let fill_attr = case builder.gradient_area {
         True -> "url(#" <> gradient_id(builder) <> ")"
         False ->
           case mode {
-            AreaExplicit(c) -> c
-            AreaAuto -> auto_area_color(builder.color)
-            NoArea -> builder.color
+            AreaExplicit(c) -> escape_attribute(c)
+            AreaAuto -> escape_attribute(auto_area_color(builder.color))
+            NoArea -> escape_attribute(builder.color)
           }
       }
       let d = path_data(points, builder.smoothing)

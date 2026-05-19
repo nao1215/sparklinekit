@@ -108,6 +108,37 @@ pub fn quote_in_color_is_escaped_test() {
   |> should.be_false
 }
 
+pub fn area_explicit_color_is_escaped_when_gradient_off_test() {
+  // The non-gradient area branch must escape the user-supplied fill
+  // colour just like `stroke_svg` and `background_rect` do —
+  // otherwise a colour string containing `"` or `<script>` lands in
+  // the SVG unescaped.
+  let svg =
+    line.new([1.0, 2.0, 3.0])
+    |> line.with_area_color("\"><script>")
+    |> line.with_gradient_area(False)
+    |> line.to_svg
+  svg
+  |> string.contains("<script>")
+  |> should.be_false
+}
+
+pub fn area_auto_color_is_escaped_when_stroke_is_non_hex_test() {
+  // When the stroke colour is non-parseable as a hex (e.g. a CSS
+  // keyword) and the gradient layer is disabled, the AreaAuto branch
+  // falls back to echoing the raw stroke colour into the area fill.
+  // That fallback must escape the value.
+  let svg =
+    line.new([1.0, 2.0, 3.0])
+    |> line.with_color("\"><script>")
+    |> line.with_area_fill(True)
+    |> line.with_gradient_area(False)
+    |> line.to_svg
+  svg
+  |> string.contains("<script>")
+  |> should.be_false
+}
+
 pub fn non_positive_size_is_clamped_to_one_test() {
   let svg =
     line.new([1.0, 2.0])
