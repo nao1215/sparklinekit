@@ -38,6 +38,12 @@ const default_gap: Float = 1.0
 
 const default_corner_radius: Float = 0.0
 
+/// Minimum drawn height for a bar with a finite value. Zero-value
+/// bars (and any bar that mathematically collapses to a height of
+/// zero) are forced up to this hairline so the reader can see the
+/// data point at the baseline instead of perceiving a missing entry.
+const min_visible_height: Float = 1.0
+
 /// Opaque builder for a bar sparkline.
 pub opaque type Builder {
   Builder(
@@ -55,8 +61,10 @@ pub opaque type Builder {
 
 /// Start a new bar sparkline builder.
 ///
-/// Defaults: 200x40 viewBox, `currentColor` fill, 1.0px gap between
-/// bars, no rounded corners, no background.
+/// Defaults: 200x40 viewBox, `currentColor` fill, the default
+/// theme's negative colour (`#EF4444`) for bars below the zero
+/// baseline, 1.0px gap between bars, no rounded corners, no
+/// background.
 pub fn new(values: List(Float)) -> Builder {
   let base = theme.default()
   Builder(
@@ -64,7 +72,7 @@ pub fn new(values: List(Float)) -> Builder {
     theme: base,
     color: theme.foreground(base),
     background: theme.background(base),
-    negative_color: None,
+    negative_color: Some(theme.negative(base)),
     width: default_width,
     height: default_height,
     gap: default_gap,
@@ -296,6 +304,11 @@ fn compute_layout(
   height: Int,
   gap: Float,
 ) -> Layout {
+  // Clamp every value to the safe finite range so the per-value
+  // subtractions in `y_coord` cannot overflow on adversarial input.
+  // `scale.min_max` does its own clamping internally, but the
+  // per-bar `value - y_min` further down has no such guard.
+  let values = list.map(values, scale.clamp_finite)
   let width_f = int.to_float(width)
   let height_f = int.to_float(height)
   let count = list.length(values)
@@ -343,17 +356,10 @@ fn compute_layout(
           let #(rs, i) = acc
           let x = int.to_float(i) *. step
           let y_value = y_coord(value, y_min, span, height_f)
-          let #(rect_y, rect_h) = case value >=. 0.0 {
-            True -> #(y_value, baseline_y -. y_value)
-            False -> #(baseline_y, y_value -. baseline_y)
-          }
-          let safe_h = case rect_h >. 0.0 {
-            True -> rect_h
-            False -> 0.0
-          }
+          let #(safe_y, safe_h) = rect_dimensions(value, y_value, baseline_y)
           #(
             [
-              Rect(x: x, y: rect_y, width: bar_w, height: safe_h, value: value),
+              Rect(x: x, y: safe_y, width: bar_w, height: safe_h, value: value),
               ..rs
             ],
             i + 1,
@@ -361,6 +367,33 @@ fn compute_layout(
         })
       Layout(rects: list.reverse(rects))
     }
+  }
+}
+
+/// Resolve the SVG/PNG rect dimensions for a single bar in a
+/// non-degenerate (mixed-sign or simple positive) layout. Falls back
+/// to a 1-pixel hairline anchored at the baseline when the raw rect
+/// height would be zero, so a value of exactly zero still leaves a
+/// visible mark.
+fn rect_dimensions(
+  value: Float,
+  y_value: Float,
+  baseline_y: Float,
+) -> #(Float, Float) {
+  let #(rect_y, rect_h) = case value >=. 0.0 {
+    True -> #(y_value, baseline_y -. y_value)
+    False -> #(baseline_y, y_value -. baseline_y)
+  }
+  case rect_h >. min_visible_height {
+    True -> #(rect_y, rect_h)
+    False -> hairline_at_baseline(value, baseline_y)
+  }
+}
+
+fn hairline_at_baseline(value: Float, baseline_y: Float) -> #(Float, Float) {
+  case value >=. 0.0 {
+    True -> #(baseline_y -. min_visible_height, min_visible_height)
+    False -> #(baseline_y, min_visible_height)
   }
 }
 

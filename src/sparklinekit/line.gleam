@@ -47,7 +47,11 @@ const bezier_samples_per_segment: Int = 16
 /// What kind of area-fill — if any — should be painted under the
 /// line. Kept private so the slot can grow without affecting
 /// callers; toggle it via [`with_area_fill/2`](#with_area_fill) and
-/// [`with_area_color/2`](#with_area_color).
+/// [`with_area_color/2`](#with_area_color). The chosen intent
+/// (auto vs explicit colour) is stored independently from whether
+/// the fill is currently *enabled*, so a `with_area_fill(False)` →
+/// `with_area_fill(True)` round-trip preserves an earlier explicit
+/// colour.
 type AreaFill {
   NoArea
   AreaAuto
@@ -68,6 +72,7 @@ pub opaque type Builder {
     height: Int,
     stroke_width: Float,
     area: AreaFill,
+    area_enabled: Bool,
     smoothing: Float,
     spot_radius: Float,
     spot_color: String,
@@ -91,6 +96,7 @@ pub fn new(values: List(Float)) -> Builder {
     height: default_height,
     stroke_width: default_stroke_width,
     area: NoArea,
+    area_enabled: False,
     smoothing: default_smoothing,
     spot_radius: default_spot_radius,
     spot_color: theme.foreground(base),
@@ -183,18 +189,25 @@ pub fn with_background_color(builder: Builder, color: String) -> Builder {
 /// Toggle the area fill under the line. When enabled without
 /// [`with_area_color`](#with_area_color) the renderer derives a
 /// translucent tint from the stroke colour.
+///
+/// Disabling and re-enabling the fill preserves an earlier
+/// [`with_area_color`](#with_area_color) — the explicit colour is
+/// remembered across the toggle so callers can hide / show the area
+/// without losing their chosen tint.
 pub fn with_area_fill(builder: Builder, enabled: Bool) -> Builder {
   case enabled, builder.area {
-    True, NoArea -> Builder(..builder, area: AreaAuto)
-    True, _ -> builder
-    False, _ -> Builder(..builder, area: NoArea)
+    True, NoArea -> Builder(..builder, area: AreaAuto, area_enabled: True)
+    True, _ -> Builder(..builder, area_enabled: True)
+    False, _ -> Builder(..builder, area_enabled: False)
   }
 }
 
 /// Explicitly set the area-fill colour. Implicitly enables the area
-/// fill — pass `with_area_fill(False)` afterwards to remove it.
+/// fill — pass `with_area_fill(False)` afterwards to hide the fill
+/// without losing the explicit colour, then `with_area_fill(True)`
+/// to restore it.
 pub fn with_area_color(builder: Builder, color: String) -> Builder {
-  Builder(..builder, area: AreaExplicit(color))
+  Builder(..builder, area: AreaExplicit(color), area_enabled: True)
 }
 
 /// Set the viewBox / pixel dimensions.
@@ -265,7 +278,8 @@ pub fn to_png(builder: Builder) -> BitArray {
     "none" -> color.transparent
     other -> parse_string_colour_or(other, color.transparent)
   }
-  let area_colour = resolve_area_colour(builder.area, fg, builder.theme)
+  let area_colour =
+    resolve_area_colour(effective_area(builder), fg, builder.theme)
   let points = pixel_points(builder)
   let stroke_path = stroke_path_points(builder, points)
   let canvas = raster.new(builder.width, builder.height, bg)
@@ -332,7 +346,7 @@ fn gradient_id(builder: Builder) -> String {
 
 fn gradient_top_colour(builder: Builder) -> Rgba {
   let fg = parse_string_colour(builder.color, theme.foreground(builder.theme))
-  case builder.area {
+  case effective_area(builder) {
     AreaExplicit(c) -> parse_string_colour_or(c, fg)
     AreaAuto ->
       case color.parse_hex(theme.area(builder.theme)) {
@@ -347,7 +361,7 @@ fn gradient_defs_svg(
   builder: Builder,
   points: List(#(Float, Float)),
 ) -> string_tree.StringTree {
-  case builder.area, builder.gradient_area, points {
+  case effective_area(builder), builder.gradient_area, points {
     NoArea, _, _ -> string_tree.new()
     _, False, _ -> string_tree.new()
     _, _, [] -> string_tree.new()
@@ -376,7 +390,7 @@ fn area_svg(
   builder: Builder,
   points: List(#(Float, Float)),
 ) -> string_tree.StringTree {
-  case builder.area, points {
+  case effective_area(builder), points {
     NoArea, _ -> string_tree.new()
     _, [] -> string_tree.new()
     _, [_] -> string_tree.new()
@@ -894,5 +908,18 @@ fn non_negative_float(value: Float) -> Float {
   case value <. 0.0 {
     True -> 0.0
     False -> value
+  }
+}
+
+/// Project the builder's `area` field through the `area_enabled`
+/// toggle. When the caller has disabled the area fill via
+/// `with_area_fill(False)`, the renderer should behave as if no
+/// area was configured — but the underlying `area` field still
+/// carries the user's last explicit / auto choice so it can be
+/// restored by a subsequent `with_area_fill(True)`.
+fn effective_area(builder: Builder) -> AreaFill {
+  case builder.area_enabled {
+    True -> builder.area
+    False -> NoArea
   }
 }
