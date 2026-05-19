@@ -159,14 +159,6 @@ pub fn new_ints_matches_new_with_floats_test() {
   from_ints |> should.equal(from_floats)
 }
 
-pub fn deprecated_to_string_matches_to_svg_test() {
-  let builder = line.new([1.0, 2.0, 3.0])
-  // `line.to_string` is deprecated and produces a compile warning on
-  // purpose — this test exists only to verify the alias keeps
-  // forwarding to `to_svg` until it is removed.
-  line.to_svg(builder) |> should.equal(line.to_string(builder))
-}
-
 pub fn with_theme_overrides_stroke_to_theme_foreground_test() {
   let svg =
     line.new([1.0, 2.0, 3.0])

@@ -43,7 +43,6 @@ targets, MIT licensed.
 - Default viewBox of `240x60`, default stroke width `2.0`,
   stroke-width-aware padding so thick strokes are not clipped at
   the canvas edge.
-- `line.to_string` kept as a deprecated alias for `line.to_svg`.
 
 #### SVG / PNG bar renderer
 
@@ -59,7 +58,6 @@ targets, MIT licensed.
   capsule rather than collapsing to a circle.
 - `bar.with_negative_color(colour)` — distinct fill for bars below
   the zero baseline; positives and negatives share that baseline.
-- `bar.to_string` kept as a deprecated alias for `bar.to_svg`.
 
 #### Themes
 
