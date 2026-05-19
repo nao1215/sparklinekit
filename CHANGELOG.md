@@ -6,93 +6,91 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
-## Unreleased
-
-### Added
-
-- `line.with_smoothing(factor)` — turn the polyline into a cubic
-  Bézier curve (the `0.0`–`0.5` factor matches the convention used
-  by `react-sparklines`).
-- `line.with_spot(radius)` / `line.with_spot_color` — drop an
-  anti-aliased filled circle on the last data point as a "today"
-  marker.
-- `line.with_gradient_area(enabled)` — gradient area fills (top
-  opaque, baseline transparent) are now the default; pass `False`
-  to fall back to the older flat tint.
-- Internal `raster.fill_circle` and `raster.fill_vertical_gradient`
-  primitives drive the new spot and gradient features in PNG
-  output.
-
-### Changed
-
-- Default line dimensions bumped from `200x40` to `240x60`, default
-  stroke width from `1.5` to `2.0`, and the renderer now leaves a
-  stroke-width-aware padding around the chart so a thick stroke at
-  the topmost or bottommost data point no longer gets clipped at
-  the canvas edge.
-- The line renderer emits `<path>` (with `M`/`L`/`C` commands) in
-  place of `<polyline>` so smooth and sharp variants share a single
-  code path.
-
-- `to_png` on both `sparklinekit/line` and `sparklinekit/bar`,
-  returning a `BitArray` of 8-bit RGBA truecolor PNG bytes encoded
-  in pure Gleam (no NIF, no `libpng`). Line strokes use Xiaolin Wu
-  anti-aliasing; rounded bars carry their corner radius into the
-  raster output.
-- `sparklinekit/theme` — six bundled colour schemes (`ocean`,
-  `forest`, `sunset`, `mono`, `neon`, `pastel`) plus
-  `theme.default()`. Apply one with `line.with_theme` /
-  `bar.with_theme` or override individual slots with
-  `with_color`, `with_background_color`, `with_area_color`, and
-  `with_negative_color`.
-- `line.with_area_fill` / `line.with_area_color` — paint a tinted
-  area under the line, derived from the stroke colour or set
-  explicitly.
-- `bar.with_corner_radius` and `bar.with_negative_color` —
-  rounded bars and a distinct colour for bars below the zero
-  baseline.
-- `line.with_background_color` / `bar.with_background_color` —
-  paint a solid background rectangle behind the chart (`"none"`
-  disables it).
-- `unicode.render_ints`, `line.new_ints`, `bar.new_ints`,
-  `line.with_int_values`, `bar.with_int_values` — `List(Int)`
-  variants so callers no longer need to convert with
-  `list.map(_, int.to_float)`.
-- `line.to_svg` / `bar.to_svg` as the preferred names for the SVG
-  renderers; `to_string` is kept as a backwards-compatible alias.
-- Internal modules `sparklinekit/internal/color`,
-  `sparklinekit/internal/png`, and
-  `sparklinekit/internal/raster` covering hex-colour parsing /
-  blending, PNG encoding (CRC32 + Adler32 + DEFLATE store
-  blocks), and the sparse canvas used by `to_png`.
-
-### Changed
-
-- README rewritten to lead with the elevator pitch and three
-  inline samples; the Lustre, oaspec, scope, target, and roadmap
-  sections are gone. Targets now sit in a single sentence at the
-  end of the document.
-- Sample images in `docs/images/` regenerated using the new
-  themed renderer (`ocean` for the line chart, `sunset` for the
-  positive bars, `forest` with the contrasting negative colour
-  for the mixed bars).
-
 ## [0.1.0] - 2026-05-19
 
+Initial public release. Pure Gleam, zero runtime dependencies
+beyond `gleam_stdlib`, runs on both the Erlang and JavaScript
+targets, MIT licensed.
+
 ### Added
 
-- Initial public release.
+#### Unicode renderer
+
 - `sparklinekit/unicode` — terminal sparklines built from the eight
   Unicode block characters `▁▂▃▄▅▆▇█`. Empty input renders as `""`;
-  single-value and all-equal inputs render as a flat line at the
-  middle level.
-- `sparklinekit/line` — SVG line sparkline builder with `with_color`,
-  `with_size`, and `with_stroke_width`. Defaults to a `200x40` viewBox,
-  `currentColor` stroke, and `1.5` stroke width. Output carries
-  `preserveAspectRatio="none"` so the chart scales to any container.
-- `sparklinekit/bar` — SVG bar sparkline builder with `with_color`,
-  `with_size`, and `with_bar_gap`. Positive and negative values share
-  a zero baseline: positives rise above it, negatives fall below.
-- Zero runtime dependencies beyond `gleam_stdlib`. Builds and tests
-  pass on both Erlang and JavaScript targets.
-- MIT licensed.
+  single-value and all-equal inputs render as the middle block.
+- `unicode.render` / `unicode.render_ints` for `List(Float)` and
+  `List(Int)` inputs respectively.
+
+#### SVG / PNG line renderer
+
+- `sparklinekit/line` — opaque builder that renders to either SVG
+  strings (`line.to_svg`) or 8-bit RGBA PNG byte arrays
+  (`line.to_png`). PNG strokes use Xiaolin Wu anti-aliasing; SVG
+  output carries `preserveAspectRatio="none"` so charts scale into
+  any container.
+- Constructors `line.new` and `line.new_ints`; in-place value
+  replacement via `line.with_values` / `line.with_int_values`.
+- Styling helpers: `line.with_color`, `line.with_background_color`,
+  `line.with_size`, `line.with_stroke_width`, `line.with_theme`.
+- `line.with_smoothing(factor)` — cubic Bézier smoothing
+  (`0.0`–`0.5` factor, matching `react-sparklines`).
+- `line.with_area_fill(enabled)` / `line.with_area_color(colour)` /
+  `line.with_gradient_area(enabled)` — tinted area under the line,
+  rendered as a top-to-baseline gradient by default.
+- `line.with_spot(radius)` / `line.with_spot_color(colour)` —
+  filled circle on the last data point as a "today" marker.
+- Default viewBox of `240x60`, default stroke width `2.0`,
+  stroke-width-aware padding so thick strokes are not clipped at
+  the canvas edge.
+
+#### SVG / PNG bar renderer
+
+- `sparklinekit/bar` — opaque builder that renders to SVG
+  (`bar.to_svg`) or PNG (`bar.to_png`). Rounded corners are
+  preserved in the raster output.
+- Constructors `bar.new` and `bar.new_ints`; in-place value
+  replacement via `bar.with_values` / `bar.with_int_values`.
+- Styling helpers: `bar.with_color`, `bar.with_background_color`,
+  `bar.with_size`, `bar.with_bar_gap`, `bar.with_theme`.
+- `bar.with_corner_radius(radius)` — radius is clamped to half the
+  smaller side of each bar so the shape stays a rectangle or
+  capsule rather than collapsing to a circle.
+- `bar.with_negative_color(colour)` — distinct fill for bars below
+  the zero baseline; positives and negatives share that baseline.
+
+#### Themes
+
+- `sparklinekit/theme` — ten bundled colour schemes covering the
+  common dashboard styles: `ocean`, `forest`, `sunset`, `mono`,
+  `neon`, `pastel`, `crimson`, `slate`, `amber`, `midnight`.
+  Plus `theme.default()` which inherits the surrounding CSS
+  `currentColor`.
+- Each theme bundles four slots — `foreground`, `background`,
+  `area`, `negative` — exposed via `theme.foreground/1`,
+  `theme.background/1`, `theme.area/1`, `theme.negative/1`.
+- Apply a theme with `line.with_theme` / `bar.with_theme`; chain
+  `with_color` / `with_background_color` / `with_area_color` /
+  `with_negative_color` to override individual slots.
+
+#### Internals
+
+- `sparklinekit/internal/color` — hex colour parsing for `#rgb`,
+  `#rgba`, `#rrggbb`, `#rrggbbaa`, plus alpha blending and
+  channel-wise compositing helpers.
+- `sparklinekit/internal/png` — PNG encoder using CRC32 +
+  Adler32 + DEFLATE "store" blocks. Pure Gleam, no FFI.
+- `sparklinekit/internal/raster` — sparse canvas with `draw_line`
+  (Wu anti-aliased), `fill_circle`, `fill_rounded_rect`, and
+  `fill_vertical_gradient` primitives.
+
+### Documentation
+
+- README written around runnable samples, each pinned to a test
+  in `test/sparklinekit/readme_test.gleam` so the published
+  snippets cannot drift from the library.
+- Sample images in `docs/images/` covering the SVG / PNG hero
+  shots, every theme preview, and the edge-case visuals
+  (single-value, all-equal, negative input).
+
+[0.1.0]: https://github.com/nao1215/sparklinekit/releases/tag/v0.1.0

@@ -247,13 +247,6 @@ pub fn to_svg(builder: Builder) -> String {
   |> string_tree.to_string
 }
 
-/// Deprecated alias for [`to_svg`](#to_svg). Will be removed in a
-/// future release.
-@deprecated("Use line.to_svg/1 instead")
-pub fn to_string(builder: Builder) -> String {
-  to_svg(builder)
-}
-
 /// Render the builder to PNG bytes (8-bit RGBA truecolor).
 ///
 /// `with_size` doubles as the pixel size for PNG — a 240x60 builder
