@@ -31,23 +31,25 @@ pub fn main() -> Nil {
   let line_builder =
     line.new(line_data)
     |> line.with_theme(theme.ocean())
-    |> line.with_size(360, 90)
-    |> line.with_stroke_width(2.5)
+    |> line.with_size(480, 120)
+    |> line.with_stroke_width(2.8)
+    |> line.with_smoothing(0.28)
     |> line.with_area_fill(True)
+    |> line.with_spot(4.0)
 
   let bar_builder =
     bar.new(bar_data)
     |> bar.with_theme(theme.sunset())
-    |> bar.with_size(360, 90)
-    |> bar.with_bar_gap(4.0)
-    |> bar.with_corner_radius(3.0)
+    |> bar.with_size(480, 120)
+    |> bar.with_bar_gap(6.0)
+    |> bar.with_corner_radius(4.0)
 
   let mixed_bar_builder =
     bar.new(mixed_bar_data)
     |> bar.with_theme(theme.forest())
-    |> bar.with_size(360, 90)
-    |> bar.with_bar_gap(6.0)
-    |> bar.with_corner_radius(3.0)
+    |> bar.with_size(480, 120)
+    |> bar.with_bar_gap(8.0)
+    |> bar.with_corner_radius(4.0)
 
   let assert Ok(Nil) =
     simplifile.write(

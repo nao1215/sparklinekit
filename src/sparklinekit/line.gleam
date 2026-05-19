@@ -29,13 +29,19 @@ import sparklinekit/internal/raster
 import sparklinekit/internal/scale
 import sparklinekit/theme.{type Theme}
 
-const default_width: Int = 200
+const default_width: Int = 240
 
-const default_height: Int = 40
+const default_height: Int = 60
 
-const default_stroke_width: Float = 1.5
+const default_stroke_width: Float = 2.0
 
-const default_area_alpha: Float = 0.18
+const default_area_alpha: Float = 0.22
+
+const default_smoothing: Float = 0.0
+
+const default_spot_radius: Float = 0.0
+
+const bezier_samples_per_segment: Int = 16
 
 /// What kind of area-fill — if any — should be painted under the
 /// line. Kept private so the slot can grow without affecting
@@ -61,14 +67,18 @@ pub opaque type Builder {
     height: Int,
     stroke_width: Float,
     area: AreaFill,
+    smoothing: Float,
+    spot_radius: Float,
+    spot_color: String,
+    gradient_area: Bool,
   )
 }
 
 /// Start a new line sparkline builder from a list of floats.
 ///
-/// Defaults: 200x40 viewBox, `currentColor` stroke (inherits the
-/// surrounding CSS colour), 1.5 stroke width, no background fill,
-/// no area fill.
+/// Defaults: 240x60 viewBox, `currentColor` stroke (inherits the
+/// surrounding CSS colour), 2.0 stroke width, no background fill,
+/// no area fill, no smoothing, no end-point spot.
 pub fn new(values: List(Float)) -> Builder {
   let base = theme.default()
   Builder(
@@ -80,6 +90,10 @@ pub fn new(values: List(Float)) -> Builder {
     height: default_height,
     stroke_width: default_stroke_width,
     area: NoArea,
+    smoothing: default_smoothing,
+    spot_radius: default_spot_radius,
+    spot_color: theme.foreground(base),
+    gradient_area: True,
   )
 }
 
@@ -110,7 +124,42 @@ pub fn with_theme(builder: Builder, theme: Theme) -> Builder {
     theme: theme,
     color: theme.foreground(theme),
     background: theme.background(theme),
+    spot_color: theme.foreground(theme),
   )
+}
+
+/// Smooth the polyline into a cubic Bézier curve. `factor` controls
+/// how round the corners get — `0.0` keeps sharp polylines, `0.25`
+/// matches the default in `react-sparklines`, and `0.5` is the
+/// roundest reasonable setting. Values outside `[0.0, 0.5]` are
+/// clamped to that range.
+pub fn with_smoothing(builder: Builder, factor: Float) -> Builder {
+  let clamped = case factor {
+    f if f <. 0.0 -> 0.0
+    f if f >. 0.5 -> 0.5
+    f -> f
+  }
+  Builder(..builder, smoothing: clamped)
+}
+
+/// Draw a filled circle at the last data point. `radius` of `0.0`
+/// turns the spot off (the default).
+pub fn with_spot(builder: Builder, radius: Float) -> Builder {
+  Builder(..builder, spot_radius: non_negative_float(radius))
+}
+
+/// Override the colour used for the spot. Defaults to the stroke
+/// colour (or, if a theme is active, the theme's foreground).
+pub fn with_spot_color(builder: Builder, color: String) -> Builder {
+  Builder(..builder, spot_color: color)
+}
+
+/// Toggle the vertical gradient applied to the area fill. When
+/// enabled (the default) the fill fades from the area colour at the
+/// top to transparent at the baseline; when disabled the fill is a
+/// solid tint.
+pub fn with_gradient_area(builder: Builder, enabled: Bool) -> Builder {
+  Builder(..builder, gradient_area: enabled)
 }
 
 /// Set the stroke colour (any CSS colour string).
@@ -167,22 +216,26 @@ pub fn with_stroke_width(builder: Builder, stroke_width: Float) -> Builder {
 
 /// Render the builder to a self-contained `<svg>` element string.
 pub fn to_svg(builder: Builder) -> String {
-  let Builder(values, _, color, background, width, height, stroke_width, area) =
-    builder
-  let area_layer = area_svg(values, width, height, color, stroke_width, area)
-  let line_layer = polyline_body(values, width, height, color, stroke_width)
-  let bg_layer = background_rect(width, height, background)
+  let points = pixel_points(builder)
+  let defs_layer = gradient_defs_svg(builder, points)
+  let bg_layer =
+    background_rect(builder.width, builder.height, builder.background)
+  let area_layer = area_svg(builder, points)
+  let line_layer = stroke_svg(builder, points)
+  let spot_layer = spot_svg(builder, points)
   string_tree.new()
   |> string_tree.append(
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ",
   )
-  |> string_tree.append(int.to_string(width))
+  |> string_tree.append(int.to_string(builder.width))
   |> string_tree.append(" ")
-  |> string_tree.append(int.to_string(height))
+  |> string_tree.append(int.to_string(builder.height))
   |> string_tree.append("\" preserveAspectRatio=\"none\">")
+  |> string_tree.append_tree(defs_layer)
   |> string_tree.append_tree(bg_layer)
   |> string_tree.append_tree(area_layer)
   |> string_tree.append_tree(line_layer)
+  |> string_tree.append_tree(spot_layer)
   |> string_tree.append("</svg>")
   |> string_tree.to_string
 }
@@ -199,29 +252,33 @@ pub fn to_string(builder: Builder) -> String {
 /// colour (transparent when `background == "none"`) and the stroke
 /// is drawn with Xiaolin Wu anti-aliasing.
 pub fn to_png(builder: Builder) -> BitArray {
-  let Builder(
-    values,
-    theme,
-    color,
-    background,
-    width,
-    height,
-    stroke_width,
-    area,
-  ) = builder
-  let fg = parse_string_colour(color, theme.foreground(theme))
-  let bg = case background {
+  let fg = parse_string_colour(builder.color, theme.foreground(builder.theme))
+  let bg = case builder.background {
     "none" -> color.transparent
     other -> parse_string_colour_or(other, color.transparent)
   }
-  let area_colour = resolve_area_colour(area, fg, theme)
-  let canvas = raster.new(width, height, bg)
+  let area_colour = resolve_area_colour(builder.area, fg, builder.theme)
+  let points = pixel_points(builder)
+  let stroke_path = stroke_path_points(builder, points)
+  let canvas = raster.new(builder.width, builder.height, bg)
   let canvas = case area_colour {
     Error(_) -> canvas
-    Ok(c) -> draw_area(canvas, values, width, height, c)
+    Ok(c) ->
+      draw_area_png(
+        canvas,
+        stroke_path,
+        builder.height,
+        c,
+        builder.gradient_area,
+      )
   }
-  let canvas = draw_stroke(canvas, values, width, height, stroke_width, fg)
-  png.encode(raster.to_grid(canvas), width: width, height: height)
+  let canvas = draw_stroke_png(canvas, stroke_path, builder.stroke_width, fg)
+  let canvas = draw_spot_png(canvas, points, builder, fg)
+  png.encode(
+    raster.to_grid(canvas),
+    width: builder.width,
+    height: builder.height,
+  )
 }
 
 fn background_rect(
@@ -243,118 +300,204 @@ fn background_rect(
   }
 }
 
-fn area_svg(
-  values: List(Float),
-  width: Int,
-  height: Int,
-  stroke_color: String,
-  stroke_width: Float,
-  area: AreaFill,
+fn gradient_id(builder: Builder) -> String {
+  "sparklinekit-area-"
+  <> int.to_string(builder.width)
+  <> "x"
+  <> int.to_string(builder.height)
+  <> "-"
+  <> int.to_string(list.length(builder.values))
+}
+
+fn gradient_defs_svg(
+  builder: Builder,
+  points: List(#(Float, Float)),
 ) -> string_tree.StringTree {
-  case area, values {
+  case builder.area, builder.gradient_area, points {
+    NoArea, _, _ -> string_tree.new()
+    _, False, _ -> string_tree.new()
+    _, _, [] -> string_tree.new()
+    _, _, [_] -> string_tree.new()
+    mode, True, _ -> {
+      let fg =
+        parse_string_colour(builder.color, theme.foreground(builder.theme))
+      let top = case mode {
+        AreaExplicit(c) -> parse_string_colour_or(c, fg)
+        AreaAuto ->
+          case color.parse_hex(theme.area(builder.theme)) {
+            Ok(c) -> c
+            Error(_) -> color.with_alpha(fg, factor: default_area_alpha)
+          }
+        NoArea -> fg
+      }
+      let bottom = color.with_alpha(top, factor: 0.0)
+      let top_attr = color.to_hex_rgba(top)
+      let bottom_attr = color.to_hex_rgba(bottom)
+      string_tree.new()
+      |> string_tree.append("<defs><linearGradient id=\"")
+      |> string_tree.append(gradient_id(builder))
+      |> string_tree.append("\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">")
+      |> string_tree.append("<stop offset=\"0%\" stop-color=\"")
+      |> string_tree.append(top_attr)
+      |> string_tree.append("\"/>")
+      |> string_tree.append("<stop offset=\"100%\" stop-color=\"")
+      |> string_tree.append(bottom_attr)
+      |> string_tree.append("\"/>")
+      |> string_tree.append("</linearGradient></defs>")
+    }
+  }
+}
+
+fn area_svg(
+  builder: Builder,
+  points: List(#(Float, Float)),
+) -> string_tree.StringTree {
+  case builder.area, points {
     NoArea, _ -> string_tree.new()
     _, [] -> string_tree.new()
     _, [_] -> string_tree.new()
     mode, _ -> {
-      let fill_colour = case mode {
-        AreaExplicit(c) -> c
-        AreaAuto -> auto_area_color(stroke_color)
-        NoArea -> stroke_color
+      let fill_attr = case builder.gradient_area {
+        True -> "url(#" <> gradient_id(builder) <> ")"
+        False ->
+          case mode {
+            AreaExplicit(c) -> c
+            AreaAuto -> auto_area_color(builder.color)
+            NoArea -> builder.color
+          }
       }
-      let points = points_string(values, width, height)
-      let bottom_right =
-        coordinate_pair(int.to_float(width), int.to_float(height))
-      let bottom_left = coordinate_pair(0.0, int.to_float(height))
-      let polygon_points = points <> " " <> bottom_right <> " " <> bottom_left
-      let _ = stroke_width
+      let d = path_data(points, builder.smoothing)
+      let bottom = int.to_float(builder.height)
+      let last_x = case last_point(points) {
+        Ok(#(x, _)) -> x
+        Error(_) -> int.to_float(builder.width)
+      }
+      let first_x = case points {
+        [#(x, _), ..] -> x
+        _ -> 0.0
+      }
+      let close =
+        " L "
+        <> float.to_string(last_x)
+        <> " "
+        <> float.to_string(bottom)
+        <> " L "
+        <> float.to_string(first_x)
+        <> " "
+        <> float.to_string(bottom)
+        <> " Z"
       string_tree.new()
-      |> string_tree.append("<polygon fill=\"")
-      |> string_tree.append(escape_attribute(fill_colour))
-      |> string_tree.append("\" stroke=\"none\" points=\"")
-      |> string_tree.append(polygon_points)
+      |> string_tree.append("<path fill=\"")
+      |> string_tree.append(fill_attr)
+      |> string_tree.append("\" stroke=\"none\" d=\"")
+      |> string_tree.append(d)
+      |> string_tree.append(close)
       |> string_tree.append("\"/>")
     }
   }
 }
 
-fn polyline_body(
-  values: List(Float),
-  width: Int,
-  height: Int,
-  color: String,
-  stroke_width: Float,
+fn stroke_svg(
+  builder: Builder,
+  points: List(#(Float, Float)),
 ) -> string_tree.StringTree {
-  case values {
+  case points {
     [] -> string_tree.new()
     _ -> {
-      let points = points_string(values, width, height)
+      let d = path_data(points, builder.smoothing)
       string_tree.new()
-      |> string_tree.append("<polyline fill=\"none\" stroke=\"")
-      |> string_tree.append(escape_attribute(color))
+      |> string_tree.append("<path fill=\"none\" stroke=\"")
+      |> string_tree.append(escape_attribute(builder.color))
       |> string_tree.append("\" stroke-width=\"")
-      |> string_tree.append(float.to_string(stroke_width))
+      |> string_tree.append(float.to_string(builder.stroke_width))
       |> string_tree.append(
-        "\" stroke-linecap=\"round\" stroke-linejoin=\"round\" points=\"",
+        "\" stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"",
       )
-      |> string_tree.append(points)
+      |> string_tree.append(d)
       |> string_tree.append("\"/>")
     }
   }
 }
 
-fn points_string(values: List(Float), width: Int, height: Int) -> String {
-  let height_f = int.to_float(height)
-  let width_f = int.to_float(width)
-  let mid = height_f /. 2.0
-  case values {
+fn spot_svg(
+  builder: Builder,
+  points: List(#(Float, Float)),
+) -> string_tree.StringTree {
+  case builder.spot_radius >. 0.0, last_point(points) {
+    True, Ok(#(x, y)) ->
+      string_tree.new()
+      |> string_tree.append("<circle cx=\"")
+      |> string_tree.append(float.to_string(x))
+      |> string_tree.append("\" cy=\"")
+      |> string_tree.append(float.to_string(y))
+      |> string_tree.append("\" r=\"")
+      |> string_tree.append(float.to_string(builder.spot_radius))
+      |> string_tree.append("\" fill=\"")
+      |> string_tree.append(escape_attribute(builder.spot_color))
+      |> string_tree.append("\"/>")
+    _, _ -> string_tree.new()
+  }
+}
+
+fn last_point(points: List(#(Float, Float))) -> Result(#(Float, Float), Nil) {
+  case list.reverse(points) {
+    [head, ..] -> Ok(head)
+    [] -> Error(Nil)
+  }
+}
+
+fn path_data(points: List(#(Float, Float)), smoothing: Float) -> String {
+  case points {
     [] -> ""
-    [_] -> coordinate_pair(0.0, mid) <> " " <> coordinate_pair(width_f, mid)
-    _ -> multi_points_string(values, width_f, height_f, mid)
-  }
-}
-
-fn multi_points_string(
-  values: List(Float),
-  width_f: Float,
-  height_f: Float,
-  mid: Float,
-) -> String {
-  let #(lo, hi) = scale.min_max(values)
-  let count = list.length(values)
-  let step = case count > 1 {
-    True -> width_f /. int.to_float(count - 1)
-    False -> 0.0
-  }
-  let #(parts, _) =
-    list.fold(values, #([], 0), fn(acc, value) {
-      let #(strs, i) = acc
-      let x = int.to_float(i) *. step
-      let y = y_for(value, lo, hi, height_f, mid)
-      #([coordinate_pair(x, y), ..strs], i + 1)
-    })
-  parts
-  |> list.reverse
-  |> string.join(" ")
-}
-
-fn y_for(
-  value: Float,
-  lo: Float,
-  hi: Float,
-  height_f: Float,
-  mid: Float,
-) -> Float {
-  case lo == hi {
-    True -> mid
-    False -> {
-      let n = scale.unit(value, lo, hi)
-      height_f -. n *. height_f
+    [#(x, y)] -> "M " <> float.to_string(x) <> " " <> float.to_string(y)
+    [#(x, y), ..rest] -> {
+      let head = "M " <> float.to_string(x) <> " " <> float.to_string(y)
+      case smoothing <=. 0.0 {
+        True -> head <> linear_segments(rest)
+        False -> head <> bezier_segments(#(x, y), rest, smoothing)
+      }
     }
   }
 }
 
-fn coordinate_pair(x: Float, y: Float) -> String {
-  float.to_string(x) <> "," <> float.to_string(y)
+fn linear_segments(points: List(#(Float, Float))) -> String {
+  list.fold(points, "", fn(acc, p) {
+    let #(x, y) = p
+    acc <> " L " <> float.to_string(x) <> " " <> float.to_string(y)
+  })
+}
+
+fn bezier_segments(
+  start: #(Float, Float),
+  rest: List(#(Float, Float)),
+  factor: Float,
+) -> String {
+  let #(_, out) =
+    list.fold(rest, #(start, ""), fn(state, p) {
+      let #(prev, acc) = state
+      let #(x0, y0) = prev
+      let #(x, y) = p
+      let dx = { x -. x0 } *. factor
+      let c1x = x0 +. dx
+      let c1y = y0
+      let c2x = x -. dx
+      let c2y = y
+      let segment =
+        " C "
+        <> float.to_string(c1x)
+        <> " "
+        <> float.to_string(c1y)
+        <> ", "
+        <> float.to_string(c2x)
+        <> " "
+        <> float.to_string(c2y)
+        <> ", "
+        <> float.to_string(x)
+        <> " "
+        <> float.to_string(y)
+      #(p, acc <> segment)
+    })
+  out
 }
 
 fn positive_or_one(value: Int) -> Int {
@@ -422,22 +565,163 @@ fn resolve_area_colour(
   }
 }
 
-fn draw_area(
+fn pixel_points(builder: Builder) -> List(#(Float, Float)) {
+  let width_f = int.to_float(builder.width)
+  let height_f = int.to_float(builder.height)
+  let inset =
+    float.max(builder.stroke_width /. 2.0, builder.spot_radius +. 1.0)
+    |> float.max(1.0)
+  let pad_x = inset
+  let pad_top = inset
+  let pad_bottom = inset
+  let usable_w = float.max(width_f -. 2.0 *. pad_x, 1.0)
+  let top_y = pad_top
+  let bottom_y = float.max(height_f -. pad_bottom, top_y +. 1.0)
+  let mid = { top_y +. bottom_y } /. 2.0
+  case builder.values {
+    [] -> []
+    [_] -> [#(pad_x, mid), #(pad_x +. usable_w, mid)]
+    values -> {
+      let #(lo, hi) = scale.min_max(values)
+      let count = list.length(values)
+      let step = case count > 1 {
+        True -> usable_w /. int.to_float(count - 1)
+        False -> 0.0
+      }
+      let #(out, _) =
+        list.fold(values, #([], 0), fn(acc, value) {
+          let #(pts, i) = acc
+          let x = pad_x +. int.to_float(i) *. step
+          let y = y_for_padded(value, lo, hi, top_y, bottom_y, mid)
+          #([#(x, y), ..pts], i + 1)
+        })
+      list.reverse(out)
+    }
+  }
+}
+
+fn y_for_padded(
+  value: Float,
+  lo: Float,
+  hi: Float,
+  top: Float,
+  bottom: Float,
+  mid: Float,
+) -> Float {
+  case lo == hi {
+    True -> mid
+    False -> {
+      let n = scale.unit(value, lo, hi)
+      bottom -. n *. { bottom -. top }
+    }
+  }
+}
+
+fn stroke_path_points(
+  builder: Builder,
+  anchors: List(#(Float, Float)),
+) -> List(#(Float, Float)) {
+  case builder.smoothing <=. 0.0, anchors {
+    _, [] -> []
+    _, [_] -> anchors
+    True, _ -> anchors
+    False, [head, ..rest] -> [
+      head,
+      ..sample_bezier(head, rest, builder.smoothing)
+    ]
+  }
+}
+
+fn sample_bezier(
+  start: #(Float, Float),
+  rest: List(#(Float, Float)),
+  factor: Float,
+) -> List(#(Float, Float)) {
+  let #(_, samples) =
+    list.fold(rest, #(start, []), fn(state, p) {
+      let #(prev, acc) = state
+      let #(x0, y0) = prev
+      let #(x1, y1) = p
+      let dx = { x1 -. x0 } *. factor
+      let c1 = #(x0 +. dx, y0)
+      let c2 = #(x1 -. dx, y1)
+      let segment =
+        bezier_subdivide(prev, c1, c2, p, bezier_samples_per_segment)
+      #(p, list.append(acc, segment))
+    })
+  samples
+}
+
+fn bezier_subdivide(
+  p0: #(Float, Float),
+  p1: #(Float, Float),
+  p2: #(Float, Float),
+  p3: #(Float, Float),
+  steps: Int,
+) -> List(#(Float, Float)) {
+  let actual_steps = case steps < 1 {
+    True -> 1
+    False -> steps
+  }
+  do_bezier_subdivide(p0, p1, p2, p3, 1, actual_steps, [])
+}
+
+fn do_bezier_subdivide(
+  p0: #(Float, Float),
+  p1: #(Float, Float),
+  p2: #(Float, Float),
+  p3: #(Float, Float),
+  step: Int,
+  total: Int,
+  acc: List(#(Float, Float)),
+) -> List(#(Float, Float)) {
+  case step > total {
+    True -> list.reverse(acc)
+    False -> {
+      let t = int.to_float(step) /. int.to_float(total)
+      let point = cubic_at(p0, p1, p2, p3, t)
+      do_bezier_subdivide(p0, p1, p2, p3, step + 1, total, [point, ..acc])
+    }
+  }
+}
+
+fn cubic_at(
+  p0: #(Float, Float),
+  p1: #(Float, Float),
+  p2: #(Float, Float),
+  p3: #(Float, Float),
+  t: Float,
+) -> #(Float, Float) {
+  let one_minus = 1.0 -. t
+  let b0 = one_minus *. one_minus *. one_minus
+  let b1 = 3.0 *. one_minus *. one_minus *. t
+  let b2 = 3.0 *. one_minus *. t *. t
+  let b3 = t *. t *. t
+  let #(x0, y0) = p0
+  let #(x1, y1) = p1
+  let #(x2, y2) = p2
+  let #(x3, y3) = p3
+  #(
+    b0 *. x0 +. b1 *. x1 +. b2 *. x2 +. b3 *. x3,
+    b0 *. y0 +. b1 *. y1 +. b2 *. y2 +. b3 *. y3,
+  )
+}
+
+fn draw_area_png(
   canvas: raster.Canvas,
-  values: List(Float),
-  width: Int,
+  path_points: List(#(Float, Float)),
   height: Int,
   fill: Rgba,
+  gradient: Bool,
 ) -> raster.Canvas {
-  let points = pixel_points(values, width, height)
-  case points {
+  case path_points {
     [] -> canvas
     [_] -> canvas
     _ -> {
       let height_f = int.to_float(height)
-      list.window_by_2(points)
+      list.window_by_2(path_points)
       |> list.fold(canvas, fn(c, pair) {
-        fill_segment_columns(c, pair, height_f, fill)
+        fill_segment_columns(c, pair, height_f, fill, gradient)
       })
     }
   }
@@ -448,6 +732,7 @@ fn fill_segment_columns(
   segment: #(#(Float, Float), #(Float, Float)),
   height_f: Float,
   fill: Rgba,
+  gradient: Bool,
 ) -> raster.Canvas {
   let #(#(x0, y0), #(x1, y1)) = segment
   case x1 -. x0 <=. 0.0 {
@@ -455,7 +740,7 @@ fn fill_segment_columns(
     False -> {
       let columns = int_range(float.round(x0), float.round(x1) - 1)
       list.fold(columns, canvas, fn(c, col) {
-        fill_area_column(c, col, x0, y0, x1, y1, height_f, fill)
+        fill_area_column(c, col, x0, y0, x1, y1, height_f, fill, gradient)
       })
     }
   }
@@ -470,15 +755,37 @@ fn fill_area_column(
   y1: Float,
   height_f: Float,
   fill: Rgba,
+  gradient: Bool,
 ) -> raster.Canvas {
   let cf = int.to_float(col)
-  let t = case x1 -. x0 == 0.0 {
+  let span = x1 -. x0
+  let t = case span == 0.0 {
     True -> 0.0
-    False -> { cf -. x0 } /. { x1 -. x0 }
+    False -> { cf -. x0 } /. span
   }
   let top = y0 +. { y1 -. y0 } *. t
   let top_clamped = clamp_float(top, 0.0, height_f)
-  raster.fill_rect(canvas, cf, top_clamped, 1.0, height_f -. top_clamped, fill)
+  case gradient {
+    False ->
+      raster.fill_rect(
+        canvas,
+        cf,
+        top_clamped,
+        1.0,
+        height_f -. top_clamped,
+        fill,
+      )
+    True ->
+      raster.fill_vertical_gradient(
+        canvas,
+        cf,
+        top_clamped,
+        cf +. 1.0,
+        height_f,
+        fill,
+        color.with_alpha(fill, factor: 0.0),
+      )
+  }
 }
 
 fn clamp_float(value: Float, lo: Float, hi: Float) -> Float {
@@ -489,35 +796,45 @@ fn clamp_float(value: Float, lo: Float, hi: Float) -> Float {
   }
 }
 
-fn draw_stroke(
+fn draw_stroke_png(
   canvas: raster.Canvas,
-  values: List(Float),
-  width: Int,
-  height: Int,
+  path_points: List(#(Float, Float)),
   stroke_width: Float,
   colour: Rgba,
 ) -> raster.Canvas {
-  let points = pixel_points(values, width, height)
-  case points {
+  case path_points {
     [] -> canvas
-    [#(_, y)] -> {
-      let _ = height
+    [#(x, y)] ->
       raster.draw_line(
         canvas,
-        0.0,
+        x -. stroke_width,
         y,
-        int.to_float(width),
+        x +. stroke_width,
         y,
         stroke_width,
         colour,
       )
-    }
     _ ->
-      list.window_by_2(points)
+      list.window_by_2(path_points)
       |> list.fold(canvas, fn(c, pair) {
         let #(#(x0, y0), #(x1, y1)) = pair
         raster.draw_line(c, x0, y0, x1, y1, stroke_width, colour)
       })
+  }
+}
+
+fn draw_spot_png(
+  canvas: raster.Canvas,
+  anchors: List(#(Float, Float)),
+  builder: Builder,
+  fg: Rgba,
+) -> raster.Canvas {
+  case builder.spot_radius >. 0.0, last_point(anchors) {
+    True, Ok(#(x, y)) -> {
+      let spot_colour = parse_string_colour_or(builder.spot_color, fg)
+      raster.fill_circle(canvas, x, y, builder.spot_radius, spot_colour)
+    }
+    _, _ -> canvas
   }
 }
 
@@ -535,32 +852,9 @@ fn do_int_range(current: Int, lo: Int, acc: List(Int)) -> List(Int) {
   }
 }
 
-fn pixel_points(
-  values: List(Float),
-  width: Int,
-  height: Int,
-) -> List(#(Float, Float)) {
-  let width_f = int.to_float(width)
-  let height_f = int.to_float(height)
-  let mid = height_f /. 2.0
-  case values {
-    [] -> []
-    [_] -> [#(0.0, mid), #(width_f -. 1.0, mid)]
-    _ -> {
-      let #(lo, hi) = scale.min_max(values)
-      let count = list.length(values)
-      let step = case count > 1 {
-        True -> { width_f -. 1.0 } /. int.to_float(count - 1)
-        False -> 0.0
-      }
-      let #(out, _) =
-        list.fold(values, #([], 0), fn(acc, value) {
-          let #(pts, i) = acc
-          let x = int.to_float(i) *. step
-          let y = y_for(value, lo, hi, height_f -. 1.0, mid)
-          #([#(x, y), ..pts], i + 1)
-        })
-      list.reverse(out)
-    }
+fn non_negative_float(value: Float) -> Float {
+  case value <. 0.0 {
+    True -> 0.0
+    False -> value
   }
 }

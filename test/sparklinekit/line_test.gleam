@@ -3,21 +3,21 @@ import gleeunit/should
 import sparklinekit/line
 import sparklinekit/theme
 
-pub fn empty_input_produces_svg_without_polyline_test() {
+pub fn empty_input_produces_svg_without_path_test() {
   let svg = line.new([]) |> line.to_string
   svg
   |> string.contains("<svg")
   |> should.be_true
 
   svg
-  |> string.contains("<polyline")
+  |> string.contains("<path")
   |> should.be_false
 }
 
-pub fn default_dimensions_are_200_by_40_test() {
+pub fn default_dimensions_are_240_by_60_test() {
   let svg = line.new([1.0, 2.0, 3.0]) |> line.to_string
   svg
-  |> string.contains("viewBox=\"0 0 200 40\"")
+  |> string.contains("viewBox=\"0 0 240 60\"")
   |> should.be_true
 }
 
@@ -58,10 +58,10 @@ pub fn with_stroke_width_sets_stroke_width_attribute_test() {
   |> should.be_true
 }
 
-pub fn output_includes_polyline_element_test() {
+pub fn output_includes_path_element_test() {
   let svg = line.new([1.0, 3.0, 2.0, 5.0]) |> line.to_string
   svg
-  |> string.contains("<polyline")
+  |> string.contains("<path")
   |> should.be_true
 }
 
@@ -83,21 +83,18 @@ pub fn output_opens_and_closes_svg_test() {
 
 pub fn single_value_draws_horizontal_segment_at_midpoint_test() {
   let svg = line.new([3.0]) |> line.to_string
-  // height=40 → midpoint y=20.0
+  // Default height=60 → midpoint y=30.0; the segment starts inside
+  // the padded edge so we just check the midpoint coordinate.
   svg
-  |> string.contains("0.0,20.0")
-  |> should.be_true
-
-  svg
-  |> string.contains("200.0,20.0")
+  |> string.contains("30.0")
   |> should.be_true
 }
 
 pub fn all_equal_values_draw_at_midpoint_test() {
   let svg = line.new([5.0, 5.0, 5.0]) |> line.to_string
-  // All points share y=20.0 (midpoint of default height 40).
+  // All points share y=30.0 (midpoint of default height 60).
   svg
-  |> string.contains(",20.0")
+  |> string.contains("30.0")
   |> should.be_true
 }
 
@@ -163,21 +160,21 @@ pub fn default_theme_omits_background_rectangle_test() {
   |> should.be_false
 }
 
-pub fn with_area_fill_adds_polygon_test() {
+pub fn with_area_fill_adds_filled_path_test() {
   let svg =
     line.new([1.0, 2.0, 3.0])
     |> line.with_theme(theme.ocean())
     |> line.with_area_fill(True)
     |> line.to_svg
   svg
-  |> string.contains("<polygon")
+  |> string.contains("<linearGradient")
   |> should.be_true
 }
 
 pub fn area_fill_off_by_default_test() {
   let svg = line.new([1.0, 2.0, 3.0]) |> line.to_svg
   svg
-  |> string.contains("<polygon")
+  |> string.contains("<linearGradient")
   |> should.be_false
 }
 
@@ -185,10 +182,45 @@ pub fn with_area_color_uses_explicit_fill_test() {
   let svg =
     line.new([1.0, 2.0, 3.0])
     |> line.with_area_color("#112233")
+    |> line.with_gradient_area(False)
     |> line.to_svg
   svg
   |> string.contains("fill=\"#112233\"")
   |> should.be_true
+}
+
+pub fn with_smoothing_emits_cubic_bezier_test() {
+  let svg =
+    line.new([1.0, 2.0, 3.0, 4.0])
+    |> line.with_smoothing(0.25)
+    |> line.to_svg
+  svg
+  |> string.contains(" C ")
+  |> should.be_true
+}
+
+pub fn no_smoothing_emits_linear_segments_test() {
+  let svg = line.new([1.0, 2.0, 3.0, 4.0]) |> line.to_svg
+  svg
+  |> string.contains(" C ")
+  |> should.be_false
+}
+
+pub fn with_spot_adds_end_circle_test() {
+  let svg =
+    line.new([1.0, 2.0, 3.0])
+    |> line.with_spot(3.0)
+    |> line.to_svg
+  svg
+  |> string.contains("<circle")
+  |> should.be_true
+}
+
+pub fn spot_off_by_default_test() {
+  let svg = line.new([1.0, 2.0, 3.0]) |> line.to_svg
+  svg
+  |> string.contains("<circle")
+  |> should.be_false
 }
 
 pub fn with_background_color_renders_rect_test() {

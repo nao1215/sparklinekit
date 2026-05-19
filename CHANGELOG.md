@@ -10,6 +10,30 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ### Added
 
+- `line.with_smoothing(factor)` — turn the polyline into a cubic
+  Bézier curve (the `0.0`–`0.5` factor matches the convention used
+  by `react-sparklines`).
+- `line.with_spot(radius)` / `line.with_spot_color` — drop an
+  anti-aliased filled circle on the last data point as a "today"
+  marker.
+- `line.with_gradient_area(enabled)` — gradient area fills (top
+  opaque, baseline transparent) are now the default; pass `False`
+  to fall back to the older flat tint.
+- Internal `raster.fill_circle` and `raster.fill_vertical_gradient`
+  primitives drive the new spot and gradient features in PNG
+  output.
+
+### Changed
+
+- Default line dimensions bumped from `200x40` to `240x60`, default
+  stroke width from `1.5` to `2.0`, and the renderer now leaves a
+  stroke-width-aware padding around the chart so a thick stroke at
+  the topmost or bottommost data point no longer gets clipped at
+  the canvas edge.
+- The line renderer emits `<path>` (with `M`/`L`/`C` commands) in
+  place of `<polyline>` so smooth and sharp variants share a single
+  code path.
+
 - `to_png` on both `sparklinekit/line` and `sparklinekit/bar`,
   returning a `BitArray` of 8-bit RGBA truecolor PNG bytes encoded
   in pure Gleam (no NIF, no `libpng`). Line strokes use Xiaolin Wu

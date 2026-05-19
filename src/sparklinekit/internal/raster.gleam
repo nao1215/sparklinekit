@@ -151,6 +151,125 @@ pub fn draw_line(
   )
 }
 
+/// Draw a filled disc of `radius` user units centred at `(cx, cy)`.
+/// Pixels on the rim are anti-aliased by the fractional area they
+/// cover so small spots look round rather than blocky.
+pub fn fill_circle(
+  canvas: Canvas,
+  cx: Float,
+  cy: Float,
+  radius: Float,
+  colour: Rgba,
+) -> Canvas {
+  case radius <=. 0.0 {
+    True -> canvas
+    False -> {
+      let x0 = float.round(cx -. radius -. 1.0)
+      let x1 = float.round(cx +. radius +. 1.0)
+      let y0 = float.round(cy -. radius -. 1.0)
+      let y1 = float.round(cy +. radius +. 1.0)
+      let xs = range(x0, x1)
+      range(y0, y1)
+      |> list.fold(canvas, fn(c, y) {
+        list.fold(xs, c, fn(c2, x) {
+          plot_disc_pixel(c2, x, y, cx, cy, radius, colour)
+        })
+      })
+    }
+  }
+}
+
+fn plot_disc_pixel(
+  canvas: Canvas,
+  x: Int,
+  y: Int,
+  cx: Float,
+  cy: Float,
+  radius: Float,
+  colour: Rgba,
+) -> Canvas {
+  let dx = int.to_float(x) +. 0.5 -. cx
+  let dy = int.to_float(y) +. 0.5 -. cy
+  let dist = float_sqrt(dx *. dx +. dy *. dy)
+  let coverage = case dist <=. radius -. 0.5 {
+    True -> 1.0
+    False ->
+      case dist >=. radius +. 0.5 {
+        True -> 0.0
+        False -> radius +. 0.5 -. dist
+      }
+  }
+  case coverage >. 0.0 {
+    False -> canvas
+    True -> put(canvas, x, y, color.with_alpha(colour, factor: coverage))
+  }
+}
+
+fn float_sqrt(value: Float) -> Float {
+  case value <=. 0.0 {
+    True -> 0.0
+    False ->
+      case float.square_root(value) {
+        Ok(v) -> v
+        Error(_) -> 0.0
+      }
+  }
+}
+
+/// Fill the rectangle `(x0, y0) -> (x1, y1)` with a vertical gradient
+/// that linearly interpolates from `top_colour` to `bottom_colour`
+/// across each row.
+pub fn fill_vertical_gradient(
+  canvas: Canvas,
+  x0: Float,
+  y0: Float,
+  x1: Float,
+  y1: Float,
+  top_colour: Rgba,
+  bottom_colour: Rgba,
+) -> Canvas {
+  let xa = float.round(float.min(x0, x1))
+  let xb = float.round(float.max(x0, x1))
+  let ya = float.round(float.min(y0, y1))
+  let yb = float.round(float.max(y0, y1))
+  case xa >= xb || ya >= yb {
+    True -> canvas
+    False -> {
+      let xs = range(xa, xb - 1)
+      let span_f = int.to_float(yb - ya)
+      range(ya, yb - 1)
+      |> list.fold(canvas, fn(c, y) {
+        let t = case span_f <=. 0.0 {
+          True -> 0.0
+          False -> int.to_float(y - ya) /. span_f
+        }
+        let row_colour = interpolate(top_colour, bottom_colour, t)
+        list.fold(xs, c, fn(c2, x) { put(c2, x, y, row_colour) })
+      })
+    }
+  }
+}
+
+fn interpolate(a: Rgba, b: Rgba, t: Float) -> Rgba {
+  let t_ = case t {
+    v if v <. 0.0 -> 0.0
+    v if v >. 1.0 -> 1.0
+    v -> v
+  }
+  let mix = fn(a_ch: Int, b_ch: Int) -> Int {
+    let af = int.to_float(a_ch)
+    let bf = int.to_float(b_ch)
+    case float.round(af +. { bf -. af } *. t_) {
+      v if v < 0 -> 0
+      v if v > 255 -> 255
+      v -> v
+    }
+  }
+  let color.Rgba(ar, ag, ab, aa) = a
+  let color.Rgba(br, bg, bb, ba) = b
+  color.Rgba(r: mix(ar, br), g: mix(ag, bg), b: mix(ab, bb), a: mix(aa, ba))
+}
+
 /// Materialise the canvas into a row-major `List(List(Rgba))` ready
 /// for [`png.encode`](./png.html#encode). Cells that were never
 /// written take the canvas background colour.

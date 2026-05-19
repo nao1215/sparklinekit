@@ -67,9 +67,11 @@ import sparklinekit/theme
 pub fn styled_chart() -> String {
   line.new([1.0, 5.0, 3.0, 8.0, 4.0])
   |> line.with_theme(theme.ocean())
-  |> line.with_size(120, 30)
+  |> line.with_size(240, 60)
   |> line.with_stroke_width(2.0)
+  |> line.with_smoothing(0.25)
   |> line.with_area_fill(True)
+  |> line.with_spot(3.0)
   |> line.to_svg
 }
 ```
@@ -77,8 +79,14 @@ pub fn styled_chart() -> String {
 `with_theme` applies a named colour scheme (`ocean`, `forest`,
 `sunset`, `mono`, `neon`, `pastel`); `with_color` /
 `with_background_color` / `with_area_color` override individual
-slots. `with_area_fill(True)` shades the area below the line using
-the area colour (defaults to a translucent tint of the stroke).
+slots. `with_smoothing(factor)` turns the polyline into a cubic
+Bézier curve (`0.0` keeps sharp corners, `0.25` matches the default
+in `react-sparklines`, `0.5` is the roundest reasonable setting).
+`with_area_fill(True)` shades the area below the line; the fill
+fades to transparent by default — call `with_gradient_area(False)`
+for a flat tint. `with_spot(radius)` drops a filled circle on the
+last data point (handy as a "today" marker); `with_spot_color`
+overrides its colour.
 
 ## SVG bar sparkline
 
