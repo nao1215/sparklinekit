@@ -159,10 +159,7 @@ pub fn main() -> Nil {
     <> int.to_string(list_length(unicode_data))
     <> " values)",
   )
-  io.println(
-    "unicode (single value): "
-    <> unicode.render(single_value_data),
-  )
+  io.println("unicode (single value): " <> unicode.render(single_value_data))
 }
 
 fn write_theme_preview(
