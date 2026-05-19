@@ -263,6 +263,38 @@ pub fn theme_gallery_renders_six_svgs_test() {
   |> should.be_true
 }
 
+// --- Edge case samples -------------------------------------------------
+
+pub fn empty_unicode_sample() -> String {
+  unicode.render([])
+}
+
+pub fn empty_line_svg_sample() -> String {
+  line.new([])
+  |> line.to_svg
+}
+
+pub fn empty_bar_svg_sample() -> String {
+  bar.new([])
+  |> bar.to_svg
+}
+
+pub fn empty_unicode_returns_empty_string_test() {
+  empty_unicode_sample() |> should.equal("")
+}
+
+pub fn empty_line_svg_has_no_path_test() {
+  let svg = empty_line_svg_sample()
+  svg |> svg_well_formed |> should.be_true
+  svg |> string.contains("<path") |> should.be_false
+}
+
+pub fn empty_bar_svg_has_no_rect_test() {
+  let svg = empty_bar_svg_sample()
+  svg |> svg_well_formed |> should.be_true
+  svg |> string.contains("<rect") |> should.be_false
+}
+
 // --- helpers -----------------------------------------------------------
 
 fn svg_well_formed(svg: String) -> Bool {

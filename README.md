@@ -9,7 +9,8 @@
 Sparkline generator for Gleam. Unicode block characters for the
 terminal, SVG strings for the browser, PNG byte arrays for
 everything else. Pure Gleam, zero runtime dependencies, runs on
-both the Erlang and JavaScript targets.
+both the Erlang and JavaScript targets — each exercised in CI on
+every push. Full API reference at <https://hexdocs.pm/sparklinekit/>.
 
 ![Line sparkline example](docs/images/sparkline-line.png)
 
@@ -211,6 +212,27 @@ pub fn save_to_disk() {
 
 ## Themes
 
+Six built-in colour schemes, each a bundle of four CSS colour
+strings (`foreground` / `background` / `area` / `negative`). Pass
+one to `line.with_theme` / `bar.with_theme` to set all four slots at
+once; chain `with_color` / `with_background_color` /
+`with_area_color` / `with_negative_color` afterwards to override
+individual slots.
+
+| Theme | When to use | Foreground | Background | Negative | Preview |
+|---|---|---|---|---|---|
+| `theme.ocean()` | Default-ish blue, neutral dashboards | `#1F6FEB` | `#F0F6FF` | `#94A3B8` | ![ocean](docs/images/theme-ocean.png) |
+| `theme.forest()` | "Up" / growth, positive metrics | `#22A06B` | `#F2FBF5` | `#E5484D` | ![forest](docs/images/theme-forest.png) |
+| `theme.sunset()` | Attention, alerts, warm accents | `#F76808` | `#FFF7ED` | `#7E22CE` | ![sunset](docs/images/theme-sunset.png) |
+| `theme.mono()` | Print, monochrome dashboards | `#1F2937` | `#F9FAFB` | `#9CA3AF` | ![mono](docs/images/theme-mono.png) |
+| `theme.neon()` | Dark-mode UIs, high contrast | `#22D3EE` | `#0F172A` | `#F472B6` | ![neon](docs/images/theme-neon.png) |
+| `theme.pastel()` | Low-saturation, soft palettes | `#A78BFA` | `#FAF5FF` | `#FB7185` | ![pastel](docs/images/theme-pastel.png) |
+
+`theme.default()` is also available and applied implicitly when no
+`with_theme` call is made: `currentColor` foreground (inherits the
+surrounding CSS colour), no background fill, an auto-derived area
+tint, and `#E5484D` for negative bars.
+
 ```gleam
 import sparklinekit/line
 import sparklinekit/theme
@@ -236,22 +258,71 @@ pub fn theme_gallery() -> List(String) {
 
 ## Edge cases
 
-- `[]` renders as `""` (Unicode), an empty `<svg>` (SVG), or a
-  blank-canvas PNG.
-- A single value renders as a flat segment at the midpoint.
-- All-equal values render as a flat segment at the midpoint.
-- Negative values are supported. Line and Unicode renderers
-  normalise against the observed `[min, max]`; bar uses a zero
-  baseline.
+### Empty input
+
+```gleam
+import sparklinekit/bar
+import sparklinekit/line
+import sparklinekit/unicode
+
+pub fn empty_unicode() -> String {
+  unicode.render([])
+  // -> ""
+}
+
+pub fn empty_line_svg() -> String {
+  line.new([])
+  |> line.to_svg
+  // -> "<svg ...></svg>" with no <path>
+}
+
+pub fn empty_bar_svg() -> String {
+  bar.new([])
+  |> bar.to_svg
+  // -> "<svg ...></svg>" with no <rect>
+}
+```
+
+The PNG counterparts (`line.to_png([])` / `bar.to_png([])`) return a
+blank canvas at the configured size — useful as a placeholder while
+data is loading.
+
+### Single value / all-equal series
+
+A single value is rendered differently per renderer, because the
+"natural" shape differs. All-equal series (e.g. `[5.0, 5.0, 5.0]`)
+follow the same rules.
+
+| Renderer | Shape | Output |
+|---|---|---|
+| Unicode | middle block `▄` repeated | `unicode.render([5.0])` → `"▄"` |
+| Line (SVG/PNG) | flat horizontal segment at the midpoint | ![](docs/images/edge-line-single.png) |
+| Bar (SVG/PNG) | half-height bars rising from the bottom | ![](docs/images/edge-bar-single.png) |
+
+The bar renderer deliberately avoids filling the whole canvas with a
+solid block — the half-height shape still says "constant value"
+without misrepresenting the scale.
+
+### Negative values
+
+Negative values are fully supported. Unicode and line renderers
+normalise against the observed `[min, max]`; the bar renderer uses a
+zero baseline so positive and negative bars rise / fall from the
+same line.
+
+![Line with mixed positive/negative values](docs/images/edge-line-negative.png)
+
+![Bar with mixed positive/negative values](docs/images/sparkline-mixed-bar.png)
+
+### Colour handling
+
 - `with_color` accepts any CSS colour string. SVG attributes are
-  escaped; PNG accepts `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa` and
-  falls back to the theme default otherwise.
+  escaped (`&`, `"`, `<`, `>`); PNG accepts `#rgb`, `#rgba`,
+  `#rrggbb`, `#rrggbbaa` and falls back to the theme default
+  otherwise.
 - The surrounding `<svg>` is not a sanitiser. Pass the output
   through DOMPurify (or equivalent) when embedding into arbitrary
   HTML.
-
-Both the Erlang and JavaScript targets are exercised in CI on every
-push. Full API reference at <https://hexdocs.pm/sparklinekit/>.
 
 ## License
 
