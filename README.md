@@ -12,11 +12,11 @@ everything else. Pure Gleam, zero runtime dependencies, runs on
 both the Erlang and JavaScript targets — each exercised in CI on
 every push. Full API reference at <https://hexdocs.pm/sparklinekit/>.
 
-![Line sparkline example](docs/images/sparkline-line.png)
+![Line sparkline example](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-line.png)
 
-![Bar sparkline example](docs/images/sparkline-bar.png)
+![Bar sparkline example](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-bar.png)
 
-![Mixed positive/negative bar sparkline example](docs/images/sparkline-mixed-bar.png)
+![Mixed positive/negative bar sparkline example](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-mixed-bar.png)
 
 ## Install
 
@@ -55,7 +55,7 @@ pub fn print_latency(samples: List(Float)) -> Nil {
 
 ## SVG line
 
-![Themed line with smoothing, area fill, and end-point spot](docs/images/sparkline-line.png)
+![Themed line with smoothing, area fill, and end-point spot](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-line.png)
 
 ```gleam
 import sparklinekit/line
@@ -128,9 +128,9 @@ pub fn line_with_ints() -> String {
 
 ## SVG bar
 
-![Rounded amber bars on white](docs/images/sparkline-bar.png)
+![Rounded amber bars on white](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-bar.png)
 
-![Mixed positive / negative bars sharing a zero baseline](docs/images/sparkline-mixed-bar.png)
+![Mixed positive / negative bars sharing a zero baseline](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-mixed-bar.png)
 
 ```gleam
 import sparklinekit/bar
@@ -183,9 +183,9 @@ pub fn themed_win_loss() -> String {
 The same builders produce 8-bit RGBA PNG byte arrays via `to_png/1` —
 ready for `simplifile.write_bits` or `bit_array.base64_encode`.
 
-![Line rendered as PNG with anti-aliased stroke and area fill](docs/images/sparkline-line.png)
+![Line rendered as PNG with anti-aliased stroke and area fill](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-line.png)
 
-![Bar rendered as PNG with rounded corners](docs/images/sparkline-bar.png)
+![Bar rendered as PNG with rounded corners](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-bar.png)
 
 ```gleam
 import sparklinekit/line
@@ -329,7 +329,7 @@ same line.
 
 ![Line with mixed positive/negative values](docs/images/edge-line-negative.png)
 
-![Bar with mixed positive/negative values](docs/images/sparkline-mixed-bar.png)
+![Bar with mixed positive/negative values](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-mixed-bar.png)
 
 ### Colour handling
 
