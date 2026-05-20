@@ -11,6 +11,7 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 ### Fixed
 
 - README: the three sparkline sample images (`sparkline-line.png`, `sparkline-bar.png`, `sparkline-mixed-bar.png`) now use absolute `raw.githubusercontent.com` URLs instead of the relative `docs/images/...` paths so they render both on GitHub and on the Hex package page (the relative paths cannot be resolved against the published package archive, which omits the `docs/images/` directory). (#7)
+- `line.with_area_fill(True)` now anchors the area to the zero baseline: all-positive series fill to the viewBox bottom (legacy behaviour, unchanged), all-negative series fill upward to the viewBox top, and mixed-sign series fill toward the SVG y-coordinate that data value `0.0` maps to — so positive segments tint downward toward zero and negative segments tint upward toward zero. Previously the area always closed at the canvas floor, which made mixed-sign series read visually as all-positive. (#6)
 
 ## [0.2.0] - 2026-05-20
 
