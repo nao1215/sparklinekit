@@ -8,6 +8,8 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-21
+
 ### Fixed
 
 - README: the three sparkline sample images (`sparkline-line.png`, `sparkline-bar.png`, `sparkline-mixed-bar.png`) now use absolute `raw.githubusercontent.com` URLs instead of the relative `docs/images/...` paths so they render both on GitHub and on the Hex package page (the relative paths cannot be resolved against the published package archive, which omits the `docs/images/` directory). (#7)
