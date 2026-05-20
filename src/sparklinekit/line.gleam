@@ -205,6 +205,20 @@ pub fn with_background_color(builder: Builder, color: String) -> Builder {
 /// [`with_area_color`](#with_area_color) the renderer derives a
 /// translucent tint from the stroke colour.
 ///
+/// The fill is anchored to the **zero baseline** so the area always
+/// represents the signed gap between the line and `y = 0`:
+///
+/// - All non-negative input fills downward from the line to the
+///   viewBox bottom (the legacy behaviour).
+/// - All non-positive input fills upward from the line to the
+///   viewBox top — the mirror of the positive case for series that
+///   live entirely below zero.
+/// - Mixed-sign input fills toward the zero baseline (the SVG y
+///   that data value `0.0` maps to), so positive segments tint
+///   *downward* toward zero and negative segments tint *upward*
+///   toward zero. Without this, mixed-sign series were filled all
+///   the way to the canvas bottom and read visually as all-positive.
+///
 /// Disabling and re-enabling the fill preserves an earlier
 /// [`with_area_color`](#with_area_color) — the explicit colour is
 /// remembered across the toggle so callers can hide / show the area
@@ -310,6 +324,7 @@ pub fn to_png(builder: Builder) -> BitArray {
         canvas,
         stroke_path,
         builder.height,
+        area_baseline_y(builder),
         c,
         builder.gradient_area,
       )
@@ -470,7 +485,7 @@ fn area_svg(
     _, _ -> {
       let #(fill_attr, opacity_attr) = area_fill_pair(builder)
       let d = path_data(points, builder.smoothing)
-      let bottom = int.to_float(builder.height)
+      let baseline = area_baseline_y(builder)
       let last_x = case last_point(points) {
         Ok(#(x, _)) -> x
         Error(_) -> int.to_float(builder.width)
@@ -483,11 +498,11 @@ fn area_svg(
         " L "
         <> format.coord(last_x)
         <> " "
-        <> format.coord(bottom)
+        <> format.coord(baseline)
         <> " L "
         <> format.coord(first_x)
         <> " "
-        <> format.coord(bottom)
+        <> format.coord(baseline)
         <> " Z"
       string_tree.new()
       |> string_tree.append("<path fill=\"")
@@ -500,6 +515,67 @@ fn area_svg(
       |> string_tree.append("\"/>")
     }
   }
+}
+
+/// Compute the SVG y-coordinate the area-fill path should close at.
+///
+/// The area fill follows standard area-chart convention: it represents
+/// the signed gap between the line and the zero baseline.
+///
+/// - **All non-negative data** (`lo >= 0`): close at the viewBox bottom
+///   (`height`). This is the legacy behaviour and the visually
+///   familiar one for monotone positive series.
+/// - **All non-positive data** (`hi <= 0`): close at the viewBox top
+///   (`0.0`). The fill grows *upward* from the line to mirror the
+///   positive case for a series that lives entirely below zero.
+/// - **Mixed-sign data** (`lo < 0 < hi`): close at the SVG y-coordinate
+///   that the data value `0.0` maps to under the same padded
+///   `top_y`/`bottom_y` window used by the line. The fill straddles
+///   the zero baseline, so positive segments tint downward toward
+///   zero and negative segments tint upward toward zero — matching
+///   the "diverging" convention readers expect from area charts
+///   on signed data. Without this, mixed-sign series were being
+///   filled all the way to the canvas bottom and read visually as
+///   all-positive.
+fn area_baseline_y(builder: Builder) -> Float {
+  let height_f = int.to_float(builder.height)
+  case builder.values {
+    [] -> height_f
+    [_] -> height_f
+    values -> {
+      let #(lo, hi) = scale.min_max(values)
+      let #(top_y, bottom_y, mid) = padded_y_window(builder)
+      case lo >=. 0.0, hi <=. 0.0 {
+        // All non-negative — keep the legacy viewBox-bottom close so
+        // existing snapshots for monotone-positive data still render
+        // exactly the same path.
+        True, _ -> height_f
+        // All non-positive — fill upward to the viewBox top.
+        _, True -> 0.0
+        // Mixed-sign — close at the SVG y for data value 0.0.
+        _, _ -> y_for_padded(0.0, lo, hi, top_y, bottom_y, mid)
+      }
+    }
+  }
+}
+
+/// Reproduce the padded y-window used by `pixel_points` so the area
+/// baseline can be computed in the same coordinate space as the data
+/// points themselves. Keeping this in a single helper makes it
+/// obvious that `area_baseline_y` and `pixel_points` agree on
+/// `top_y` / `bottom_y` / `mid`.
+fn padded_y_window(builder: Builder) -> #(Float, Float, Float) {
+  let width_f = int.to_float(builder.width)
+  let height_f = int.to_float(builder.height)
+  let raw_inset =
+    float.max(builder.stroke_width /. 2.0, builder.spot_radius +. 1.0)
+    |> float.max(1.0)
+  let max_inset = float.min(width_f /. 2.0, height_f /. 2.0)
+  let inset = float.min(raw_inset, max_inset)
+  let top_y = inset
+  let bottom_y = float.max(height_f -. inset, top_y)
+  let mid = { top_y +. bottom_y } /. 2.0
+  #(top_y, bottom_y, mid)
 }
 
 fn stroke_svg(
@@ -672,26 +748,18 @@ fn resolve_area_colour(
 
 fn pixel_points(builder: Builder) -> List(#(Float, Float)) {
   let width_f = int.to_float(builder.width)
-  let height_f = int.to_float(builder.height)
   // Cap the requested inset to half the smaller side so the drawing
   // never extends outside the viewBox on a tiny canvas. Without this
   // clamp a `with_size(1, 1)` chart was producing coordinates like
-  // `M 1.0 2.0` that fell outside the `0 0 1 1` viewBox.
-  let raw_inset =
-    float.max(builder.stroke_width /. 2.0, builder.spot_radius +. 1.0)
-    |> float.max(1.0)
-  let max_inset = float.min(width_f /. 2.0, height_f /. 2.0)
-  let inset = float.min(raw_inset, max_inset)
-  let pad_x = inset
-  let pad_top = inset
-  let pad_bottom = inset
+  // `M 1.0 2.0` that fell outside the `0 0 1 1` viewBox. The y-window
+  // is computed by `padded_y_window` and shared with the area-baseline
+  // calculation so the two cannot drift apart.
+  let #(top_y, bottom_y, mid) = padded_y_window(builder)
+  let pad_x = top_y
   // Clamp the drawable width to what actually fits inside the
   // canvas; without this, a tiny `with_size(1, 1)` could produce
   // path coordinates extending past the right edge of the viewBox.
   let usable_w = float.max(width_f -. 2.0 *. pad_x, 0.0)
-  let top_y = pad_top
-  let bottom_y = float.max(height_f -. pad_bottom, top_y)
-  let mid = { top_y +. bottom_y } /. 2.0
   case builder.values {
     [] -> []
     [_] -> [#(pad_x, mid), #(pad_x +. usable_w, mid)]
@@ -825,6 +893,7 @@ fn draw_area_png(
   canvas: raster.Canvas,
   path_points: List(#(Float, Float)),
   height: Int,
+  baseline: Float,
   fill: Rgba,
   gradient: Bool,
 ) -> raster.Canvas {
@@ -835,7 +904,7 @@ fn draw_area_png(
       let height_f = int.to_float(height)
       list.window_by_2(path_points)
       |> list.fold(canvas, fn(c, pair) {
-        fill_segment_columns(c, pair, height_f, fill, gradient)
+        fill_segment_columns(c, pair, height_f, baseline, fill, gradient)
       })
     }
   }
@@ -845,6 +914,7 @@ fn fill_segment_columns(
   canvas: raster.Canvas,
   segment: #(#(Float, Float), #(Float, Float)),
   height_f: Float,
+  baseline: Float,
   fill: Rgba,
   gradient: Bool,
 ) -> raster.Canvas {
@@ -854,7 +924,18 @@ fn fill_segment_columns(
     False -> {
       let columns = int_range(float.round(x0), float.round(x1) - 1)
       list.fold(columns, canvas, fn(c, col) {
-        fill_area_column(c, col, x0, y0, x1, y1, height_f, fill, gradient)
+        fill_area_column(
+          c,
+          col,
+          x0,
+          y0,
+          x1,
+          y1,
+          height_f,
+          baseline,
+          fill,
+          gradient,
+        )
       })
     }
   }
@@ -868,6 +949,7 @@ fn fill_area_column(
   x1: Float,
   y1: Float,
   height_f: Float,
+  baseline: Float,
   fill: Rgba,
   gradient: Bool,
 ) -> raster.Canvas {
@@ -877,28 +959,86 @@ fn fill_area_column(
     True -> 0.0
     False -> { cf -. x0 } /. span
   }
-  let top = y0 +. { y1 -. y0 } *. t
-  let top_clamped = clamp_float(top, 0.0, height_f)
-  case gradient {
-    False ->
-      raster.fill_rect(
-        canvas,
-        cf,
-        top_clamped,
-        1.0,
-        height_f -. top_clamped,
-        fill,
-      )
+  let line_y = y0 +. { y1 -. y0 } *. t
+  let line_clamped = clamp_float(line_y, 0.0, height_f)
+  let baseline_clamped = clamp_float(baseline, 0.0, height_f)
+  // The line may sit above OR below the baseline (mixed-sign data
+  // crosses the baseline mid-column). Order the two so `fill_top`
+  // is always the smaller y and `fill_bottom` is the larger; the
+  // gradient still fades from `fill` at the line side to
+  // transparent at the baseline side.
+  case line_clamped <=. baseline_clamped {
     True ->
-      raster.fill_vertical_gradient(
+      column_fill(
         canvas,
         cf,
-        top_clamped,
-        cf +. 1.0,
-        height_f,
+        line_clamped,
+        baseline_clamped,
         fill,
-        color.with_alpha(fill, factor: 0.0),
+        gradient,
+        True,
       )
+    False ->
+      column_fill(
+        canvas,
+        cf,
+        baseline_clamped,
+        line_clamped,
+        fill,
+        gradient,
+        False,
+      )
+  }
+}
+
+/// Paint a single column between `top` and `bottom`. When `line_on_top`
+/// is true, the data line sits at `top` and the baseline at `bottom`
+/// (the legacy positive case); when false, the data line sits at
+/// `bottom` and the baseline at `top` (the negative-area case). The
+/// gradient fades from `fill` at the line side to transparent at the
+/// baseline side so the area always reads as "saturated at the line,
+/// vanishing toward zero".
+fn column_fill(
+  canvas: raster.Canvas,
+  cf: Float,
+  top: Float,
+  bottom: Float,
+  fill: Rgba,
+  gradient: Bool,
+  line_on_top: Bool,
+) -> raster.Canvas {
+  let height = bottom -. top
+  case height <=. 0.0 {
+    True -> canvas
+    False ->
+      case gradient {
+        False -> raster.fill_rect(canvas, cf, top, 1.0, height, fill)
+        True -> {
+          let transparent = color.with_alpha(fill, factor: 0.0)
+          case line_on_top {
+            True ->
+              raster.fill_vertical_gradient(
+                canvas,
+                cf,
+                top,
+                cf +. 1.0,
+                bottom,
+                fill,
+                transparent,
+              )
+            False ->
+              raster.fill_vertical_gradient(
+                canvas,
+                cf,
+                top,
+                cf +. 1.0,
+                bottom,
+                transparent,
+                fill,
+              )
+          }
+        }
+      }
   }
 }
 
