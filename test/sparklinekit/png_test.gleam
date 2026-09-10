@@ -39,6 +39,44 @@ pub fn line_png_for_empty_input_still_returns_valid_signature_test() {
   }
 }
 
+pub fn empty_input_png_has_the_configured_size_test() {
+  let line_png =
+    line.new([])
+    |> line.with_size(40, 20)
+    |> line.to_png
+  let bar_png =
+    bar.new([])
+    |> bar.with_size(40, 20)
+    |> bar.to_png
+  ihdr_size(line_png) |> should.equal(Ok(#(40, 20)))
+  ihdr_size(bar_png) |> should.equal(Ok(#(40, 20)))
+}
+
+pub fn empty_input_png_is_a_blank_canvas_test() {
+  // Nothing is drawn for an empty series, so the line and bar
+  // renderers produce the same canvas for the same size and background.
+  let line_png =
+    line.new([])
+    |> line.with_size(12, 8)
+    |> line.with_background_color("#ffffff")
+    |> line.to_png
+  let bar_png =
+    bar.new([])
+    |> bar.with_size(12, 8)
+    |> bar.with_background_color("#ffffff")
+    |> bar.to_png
+  line_png |> should.equal(bar_png)
+}
+
+fn ihdr_size(png: BitArray) -> Result(#(Int, Int), Nil) {
+  // Signature (8 bytes), IHDR length (4), "IHDR" (4), width (4), height (4).
+  case png {
+    <<_:bytes-size(16), width:size(32), height:size(32), _:bits>> ->
+      Ok(#(width, height))
+    _ -> Error(Nil)
+  }
+}
+
 pub fn bar_png_for_single_value_still_returns_valid_signature_test() {
   let bytes =
     bar.new([5.0])

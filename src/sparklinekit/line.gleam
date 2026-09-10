@@ -267,6 +267,11 @@ pub fn with_stroke_width(builder: Builder, stroke_width: Float) -> Builder {
 /// The `<svg>` carries `width`, `height`, and `viewBox` attributes so
 /// the chart sizes itself correctly both when embedded inside a
 /// CSS-sized container and when displayed standalone.
+///
+/// An empty series produces the `<svg>` element with no `<path>`, so
+/// it still reserves its space in a layout. A single value, or a
+/// series where every value is the same, draws a flat horizontal
+/// line at mid-height.
 pub fn to_svg(builder: Builder) -> String {
   let points = pixel_points(builder)
   let defs_layer = gradient_defs_svg(builder, points)
@@ -299,7 +304,10 @@ pub fn to_svg(builder: Builder) -> String {
 /// `with_size` doubles as the pixel size for PNG — a 240x60 builder
 /// produces a 240x60 image. The canvas starts at the background
 /// colour (transparent when `background == "none"`) and the stroke
-/// is drawn with Xiaolin Wu anti-aliasing.
+/// is drawn with Xiaolin Wu anti-aliasing. An empty series leaves
+/// the canvas blank at the configured size; a single value or an
+/// all-equal series draws the same flat mid-height line as
+/// [`to_svg`](#to_svg).
 ///
 /// The PNG IDAT payload is written using DEFLATE's uncompressed
 /// "store" blocks (no Huffman coding) so the encoder stays pure

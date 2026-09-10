@@ -151,6 +151,12 @@ pub fn with_corner_radius(builder: Builder, radius: Float) -> Builder {
 }
 
 /// Render the builder to a self-contained `<svg>` element string.
+///
+/// An empty series produces the `<svg>` element with no bars, so it
+/// still reserves its space in a layout. A single value, or a series
+/// where every value is the same, draws half-height bars rising from
+/// the bottom: the chart shows a constant without filling the canvas
+/// as if the value were the maximum of some wider range.
 pub fn to_svg(builder: Builder) -> String {
   let Builder(
     values,
@@ -187,7 +193,10 @@ pub fn to_svg(builder: Builder) -> String {
 }
 
 /// Render the builder to PNG bytes (8-bit RGBA truecolor). The
-/// viewBox dimensions double as the pixel size.
+/// viewBox dimensions double as the pixel size. An empty series
+/// leaves the canvas blank at that size; a single value or an
+/// all-equal series draws the same half-height bars as
+/// [`to_svg`](#to_svg).
 ///
 /// The PNG IDAT payload is written using DEFLATE's uncompressed
 /// "store" blocks (no Huffman coding) so the encoder stays pure
