@@ -8,9 +8,15 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-10
+
 ### Changed
 
 - The minimum Gleam version is now 1.14.0 (was 1.15.0). 1.14.0 builds and tests the package unchanged on both targets, and `gleam_stdlib` 1.0 already requires it. CI tests that floor alongside the latest Gleam 1.x.
+
+### Fixed
+
+- `sparklinekit.package_version()` returned `"0.1.0"` in 0.2.0 and 0.3.0; it now returns the published version. The test that was meant to catch this compared the constant with a hard-coded string; it now reads `gleam.toml`.
 
 ### Documentation
 
