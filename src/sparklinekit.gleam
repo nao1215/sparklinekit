@@ -43,7 +43,7 @@
 /// The package version, kept in sync with `gleam.toml`.
 ///
 /// Releases that bump `gleam.toml` without bumping this constant (or
-/// vice versa) are caught by `package_version_test`.
+/// vice versa) are caught by `package_version_matches_gleam_toml_test`.
 pub fn package_version() -> String {
-  "0.1.0"
+  "0.4.0"
 }
