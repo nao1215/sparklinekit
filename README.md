@@ -5,6 +5,7 @@
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/sparklinekit/)
 [![CI](https://github.com/nao1215/sparklinekit/actions/workflows/ci.yml/badge.svg)](https://github.com/nao1215/sparklinekit/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/nao1215/sparklinekit)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nao1215/sparklinekit/badge)](https://scorecard.dev/viewer/?uri=github.com/nao1215/sparklinekit)
 
 Sparkline generator for Gleam. Unicode block characters for the
 terminal, SVG strings for the browser, PNG byte arrays for
