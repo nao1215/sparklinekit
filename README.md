@@ -353,7 +353,7 @@ gh attestation verify sparklinekit-<version>.tar --repo nao1215/sparklinekit
 
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp '^https://github.com/nao1215/sparklinekit/' \
+  --certificate-identity-regexp '^https://github\.com/nao1215/sparklinekit/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
 sha256sum --check checksums.txt
