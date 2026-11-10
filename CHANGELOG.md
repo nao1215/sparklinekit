@@ -8,6 +8,10 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ## [Unreleased]
 
+### Changed
+
+- GitHub Releases now attach the Hex package tarball, `checksums.txt`, a keyless cosign signature bundle for it and build provenance (`*.intoto.jsonl`). See "Verifying releases" in the README.
+
 ## [0.4.0] - 2026-09-10
 
 ### Changed
