@@ -342,6 +342,23 @@ same line.
   through DOMPurify (or equivalent) when embedding into arbitrary
   HTML.
 
+## Verifying releases
+
+Each GitHub Release attaches the Hex package tarball (`sparklinekit-<version>.tar`),
+`checksums.txt`, a cosign signature bundle (`checksums.txt.sigstore.json`) and
+build provenance (`sparklinekit-<version>.intoto.jsonl`). Download the assets, then:
+
+```sh
+gh attestation verify sparklinekit-<version>.tar --repo nao1215/sparklinekit
+
+cosign verify-blob \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/nao1215/sparklinekit/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
+sha256sum --check checksums.txt
+```
+
 ## License
 
 [MIT](LICENSE)
