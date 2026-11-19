@@ -345,6 +345,19 @@ same line.
   through DOMPurify (or equivalent) when embedding into arbitrary
   HTML.
 
+## Testing
+
+| Technique | Bug class caught here |
+|---|---|
+| Examples and unit tests | [Wrong output for a renderer or builder option](doc/testing.md#examples-and-unit-tests) |
+| Boundary values | [Crashes and wrong scaling on empty, flat, signed or extreme series](doc/testing.md#boundary-values) |
+| Generated properties | [Malformed SVG / PNG, blocks outside the alphabet](doc/testing.md#generated-properties) |
+| Metamorphic relations | [Pictures that change when the series only changes scale, offset or order](doc/testing.md#metamorphic-relations) |
+| Differential testing | [Unicode buckets that differ from an independent implementation](doc/testing.md#differential-testing) |
+| Fuzzing and snapshots | [Colour strings that break out of SVG attributes; unreviewed changes to coordinates and pixels](doc/testing.md#fuzzing-and-snapshots) |
+| Nightly runs | [Rare inputs the normal run count misses](doc/testing.md#nightly-runs) |
+| Mutation testing | [Assertions that miss a changed operator or branch](doc/testing.md#mutation-testing) |
+
 ## Verifying releases
 
 Each GitHub Release attaches the Hex package tarball (`sparklinekit-<version>.tar`),
