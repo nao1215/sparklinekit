@@ -10,11 +10,10 @@
 [![License](https://img.shields.io/github/license/nao1215/sparklinekit)](./LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nao1215/sparklinekit/badge)](https://scorecard.dev/viewer/?uri=github.com/nao1215/sparklinekit)
 
-Sparkline generator for Gleam. Unicode block characters for the
-terminal, SVG strings for the browser, PNG byte arrays for
-everything else. Pure Gleam, zero runtime dependencies, runs on
-both the Erlang and JavaScript targets — each exercised in CI on
-every push. Full API reference at <https://hexdocs.pm/sparklinekit/>.
+Sparklines for Gleam: Unicode blocks for the terminal, SVG strings for
+the browser, and PNG bytes for everything else. Pure Gleam with no
+runtime dependencies; CI runs it on Erlang and JavaScript. The full API
+is on [HexDocs](https://hexdocs.pm/sparklinekit/).
 
 ![Line sparkline example](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-line.png)
 
@@ -57,9 +56,14 @@ pub fn print_latency(samples: List(Float)) -> Nil {
 }
 ```
 
-## SVG line
+`print_latency([12.0, 14.0, 13.0, 40.0, 85.0, 33.0, 15.0, 12.0, 11.0, 13.0])`
+prints:
 
-![Themed line with smoothing, area fill, and end-point spot](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-line.png)
+```text
+latency  ▁▁▁▄█▃▁▁▁▁
+```
+
+## SVG line
 
 ```gleam
 import sparklinekit/line
@@ -70,28 +74,14 @@ pub fn minimal_line() -> String {
 }
 ```
 
-```gleam
-import sparklinekit/line
-import sparklinekit/theme
+returns:
 
-pub fn themed_line() -> String {
-  line.new([1.0, 5.0, 3.0, 8.0, 4.0])
-  |> line.with_theme(theme.ocean())
-  |> line.to_svg
-}
+```text
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="60" viewBox="0 0 240 60" preserveAspectRatio="none"><path fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" d="M 1.0 59.0 L 60.5 25.86 L 120.0 42.43 L 179.5 1.0 L 239.0 34.14"/></svg>
 ```
 
-```gleam
-import sparklinekit/line
-import sparklinekit/theme
-
-pub fn smooth_line() -> String {
-  line.new([1.0, 5.0, 3.0, 8.0, 4.0, 9.0, 6.0])
-  |> line.with_theme(theme.ocean())
-  |> line.with_smoothing(0.25)
-  |> line.to_svg
-}
-```
+Options chain onto the builder. The images at the top are drawn with
+similar options by [`test/gen/sample.gleam`](test/gen/sample.gleam):
 
 ```gleam
 import sparklinekit/line
@@ -107,43 +97,11 @@ pub fn area_line() -> String {
 }
 ```
 
-```gleam
-import sparklinekit/line
-
-pub fn raw_colour_line() -> String {
-  line.new([1.0, 5.0, 3.0, 8.0, 4.0])
-  |> line.with_color("#378ADD")
-  |> line.with_size(240, 60)
-  |> line.with_stroke_width(2.0)
-  |> line.to_svg
-}
-```
-
-```gleam
-import sparklinekit/line
-import sparklinekit/theme
-
-pub fn line_with_ints() -> String {
-  line.new_ints([1, 5, 3, 8, 4])
-  |> line.with_theme(theme.forest())
-  |> line.to_svg
-}
-```
+Instead of a theme you can set `with_color("#378ADD")`,
+`with_size(240, 60)` and `with_stroke_width(2.0)` directly, and
+`line.new_ints` takes a `List(Int)`.
 
 ## SVG bar
-
-![Rounded amber bars on white](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-bar.png)
-
-![Mixed positive / negative bars sharing a zero baseline](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-mixed-bar.png)
-
-```gleam
-import sparklinekit/bar
-
-pub fn minimal_bar() -> String {
-  bar.new([3.0, 7.0, 2.0, 9.0, 5.0])
-  |> bar.to_svg
-}
-```
 
 ```gleam
 import sparklinekit/bar
@@ -158,6 +116,8 @@ pub fn rounded_bar() -> String {
 }
 ```
 
+Negative values get their own colour:
+
 ```gleam
 import sparklinekit/bar
 
@@ -170,26 +130,10 @@ pub fn win_loss() -> String {
 }
 ```
 
-```gleam
-import sparklinekit/bar
-import sparklinekit/theme
-
-pub fn themed_win_loss() -> String {
-  bar.new_ints([3, -2, 5, -4, 6, -1])
-  |> bar.with_theme(theme.forest())
-  |> bar.with_corner_radius(3.0)
-  |> bar.to_svg
-}
-```
-
 ## PNG output
 
-The same builders produce 8-bit RGBA PNG byte arrays via `to_png/1` —
-ready for `simplifile.write_bits` or `bit_array.base64_encode`.
-
-![Line rendered as PNG with anti-aliased stroke and area fill](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-line.png)
-
-![Bar rendered as PNG with rounded corners](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-bar.png)
+`to_png/1` on the same builders returns 8-bit RGBA PNG bytes, which
+you can pass to `simplifile.write_bits` or `bit_array.base64_encode`.
 
 ```gleam
 import sparklinekit/line
@@ -201,18 +145,6 @@ pub fn line_png() -> BitArray {
   |> line.with_smoothing(0.25)
   |> line.with_area_fill(True)
   |> line.to_png
-}
-```
-
-```gleam
-import sparklinekit/bar
-import sparklinekit/theme
-
-pub fn bar_png() -> BitArray {
-  bar.new([3.0, 7.0, 2.0, 9.0, 5.0, 11.0, 6.0])
-  |> bar.with_theme(theme.sunset())
-  |> bar.with_corner_radius(3.0)
-  |> bar.to_png
 }
 ```
 
@@ -229,12 +161,10 @@ pub fn save_to_disk() {
 
 ## Themes
 
-Ten built-in colour schemes, each a bundle of four CSS colour
-strings (`foreground` / `background` / `area` / `negative`). Pass
-one to `line.with_theme` / `bar.with_theme` to set all four slots at
-once; chain `with_color` / `with_background_color` /
-`with_area_color` / `with_negative_color` afterwards to override
-individual slots.
+A theme sets four CSS colours at once (`foreground` / `background` /
+`area` / `negative`) through `line.with_theme` or `bar.with_theme`.
+Call `with_color` / `with_background_color` / `with_area_color` /
+`with_negative_color` afterwards to override one of them.
 
 | Theme | When to use | Foreground | Background | Negative | Preview |
 |---|---|---|---|---|---|
@@ -249,33 +179,9 @@ individual slots.
 | `theme.amber()` | Finance / warning, softer than red | `#F59E0B` | `#FFFFFF` | `#DC2626` | ![amber](docs/images/theme-amber.png) |
 | `theme.midnight()` | Dark-mode default, off-white on navy | `#F8FAFC` | `#020617` | `#FB7185` | ![midnight](docs/images/theme-midnight.png) |
 
-`theme.default()` is also available and applied implicitly when no
-`with_theme` call is made: `currentColor` foreground (inherits the
-surrounding CSS colour), no background fill, an auto-derived area
-tint, and `#EF4444` for negative bars.
-
-```gleam
-import sparklinekit/line
-import sparklinekit/theme
-
-pub fn theme_gallery() -> List(String) {
-  let values = [1.0, 5.0, 3.0, 8.0, 4.0, 9.0, 6.0]
-  let render = fn(t) {
-    line.new(values)
-    |> line.with_theme(t)
-    |> line.with_area_fill(True)
-    |> line.to_svg
-  }
-  [
-    render(theme.ocean()),
-    render(theme.forest()),
-    render(theme.sunset()),
-    render(theme.mono()),
-    render(theme.neon()),
-    render(theme.pastel()),
-  ]
-}
-```
+Without `with_theme` you get `theme.default()`: a `currentColor`
+foreground that inherits the surrounding CSS colour, no background, an
+area tint derived from the foreground, and `#EF4444` for negative bars.
 
 ## Edge cases
 
@@ -304,15 +210,13 @@ pub fn empty_bar_svg() -> String {
 }
 ```
 
-The PNG counterparts (`line.to_png([])` / `bar.to_png([])`) return a
-blank canvas at the configured size — useful as a placeholder while
-data is loading.
+For empty input, `line.to_png` and `bar.to_png` return a blank canvas at
+the configured size, which works as a placeholder while data loads.
 
 ### Single value / all-equal series
 
-A single value is rendered differently per renderer, because the
-"natural" shape differs. All-equal series (e.g. `[5.0, 5.0, 5.0]`)
-follow the same rules.
+Each renderer draws a single value its own way, and an all-equal series
+such as `[5.0, 5.0, 5.0]` is drawn the same way.
 
 | Renderer | Shape | Output |
 |---|---|---|
@@ -320,30 +224,24 @@ follow the same rules.
 | Line (SVG/PNG) | flat horizontal segment at the midpoint | ![](docs/images/edge-line-single.png) |
 | Bar (SVG/PNG) | half-height bars rising from the bottom | ![](docs/images/edge-bar-single.png) |
 
-The bar renderer deliberately avoids filling the whole canvas with a
-solid block — the half-height shape still says "constant value"
-without misrepresenting the scale.
+Bars stop at half height so a constant series does not look like a full
+scale reading.
 
 ### Negative values
 
-Negative values are fully supported. Unicode and line renderers
-normalise against the observed `[min, max]`; the bar renderer uses a
-zero baseline so positive and negative bars rise / fall from the
-same line.
+Unicode and line output scale to the observed `[min, max]`. Bars share
+a zero baseline, so negative bars hang below it (third image at the
+top).
 
 ![Line with mixed positive/negative values](docs/images/edge-line-negative.png)
 
-![Bar with mixed positive/negative values](https://raw.githubusercontent.com/nao1215/sparklinekit/main/docs/images/sparkline-mixed-bar.png)
-
 ### Colour handling
 
-- `with_color` accepts any CSS colour string. SVG attributes are
-  escaped (`&`, `"`, `<`, `>`); PNG accepts `#rgb`, `#rgba`,
-  `#rrggbb`, `#rrggbbaa` and falls back to the theme default
-  otherwise.
-- The surrounding `<svg>` is not a sanitiser. Pass the output
-  through DOMPurify (or equivalent) when embedding into arbitrary
-  HTML.
+`with_color` accepts any CSS colour string and escapes `&`, `"`, `<`
+and `>` in SVG attributes. PNG output accepts `#rgb`, `#rgba`,
+`#rrggbb` and `#rrggbbaa` and falls back to the theme default for
+anything else. The SVG output is not sanitised for arbitrary HTML, so
+run it through DOMPurify or similar before embedding it there.
 
 ## Testing
 
