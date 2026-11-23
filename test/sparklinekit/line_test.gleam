@@ -409,7 +409,10 @@ pub fn solid_area_uses_theme_area_colour_test() {
       area: sparklinekit.SolidArea,
     )
   let svg = render.line_svg([1.0, 5.0, 3.0], options)
-  assert string.contains(svg, "<path fill=\"#2563EB33\" stroke=\"none\"")
+  assert string.contains(
+    svg,
+    "<path fill=\"#2563eb\" fill-opacity=\"0.2\" stroke=\"none\"",
+  )
 }
 
 // The dot kept the colour of the theme it was set with, so a dot on a
@@ -482,7 +485,7 @@ pub fn mixed_gradient_fades_towards_zero_on_both_sides_test() {
   let svg = render.line_svg([-1.0, 1.0], mixed_options())
   assert string.contains(
     svg,
-    "<stop offset=\"0%\" stop-color=\"#2563eb33\"/><stop offset=\"50.0%\" stop-color=\"#2563eb00\"/><stop offset=\"100%\" stop-color=\"#2563eb33\"/>",
+    "<stop offset=\"0%\" stop-color=\"#2563eb\" stop-opacity=\"0.2\"/><stop offset=\"50.0%\" stop-color=\"#2563eb\" stop-opacity=\"0\"/><stop offset=\"100%\" stop-color=\"#2563eb\" stop-opacity=\"0.2\"/>",
   )
 }
 
@@ -491,7 +494,7 @@ pub fn mixed_gradient_stop_follows_the_level_of_zero_test() {
   let svg = render.line_svg([-1.0, 3.0], mixed_options())
   assert string.contains(
     svg,
-    "<stop offset=\"75.0%\" stop-color=\"#2563eb00\"/>",
+    "<stop offset=\"75.0%\" stop-color=\"#2563eb\" stop-opacity=\"0\"/>",
   )
 }
 

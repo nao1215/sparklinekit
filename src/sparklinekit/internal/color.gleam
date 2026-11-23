@@ -46,6 +46,25 @@ pub fn paint_rgba(paint: Paint) -> Rgba {
   }
 }
 
+/// How SVG output writes `paint`: a colour without alpha, and an opacity
+/// for the `fill-opacity`, `stroke-opacity` or `stop-opacity` attribute.
+/// SVG 1.1 has no `#rgba` or `#rrggbbaa`, so those are written as
+/// `#rrggbb` and an opacity; other hex colours are written as given.
+pub fn svg_colour(paint: Paint) -> #(String, Float) {
+  case paint {
+    Hex(text:, rgba:) ->
+      case string.length(text) {
+        5 | 9 -> #(
+          string.slice(to_hex_rgba(rgba), 0, 7),
+          int.to_float(rgba.a) /. 255.0,
+        )
+        _ -> #(text, 1.0)
+      }
+    CurrentColor(opacity:) -> #("currentColor", opacity)
+    NoPaint -> #("none", 1.0)
+  }
+}
+
 /// `paint` with its opacity multiplied by `factor`.
 pub fn fade(paint: Paint, factor factor: Float) -> Paint {
   case paint {

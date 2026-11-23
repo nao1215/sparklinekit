@@ -215,7 +215,7 @@ pub fn explicit_current_colour_area_matches_in_both_formats_test() {
   let svg = render.line_svg(values, line(current))
   assert string.contains(
     svg,
-    "<stop offset=\"0%\" stop-color=\"currentColor\" stop-opacity=\"1.0\"/>",
+    "<stop offset=\"0%\" stop-color=\"currentColor\"/>",
   )
 }
 
@@ -225,4 +225,27 @@ pub fn no_colour_can_inject_markup_test() {
   let theme = sparklinekit.Theme(..sparklinekit.ocean, foreground: value)
   assert sparklinekit.line_svg(values, line(theme))
     == Error(InvalidColor(field: "foreground", value:))
+}
+
+// SVG 1.1 has no `#rgba` or `#rrggbbaa`, so a colour with alpha is written
+// as `#rrggbb` and an opacity, which every SVG renderer reads. Colours
+// without alpha are written as given.
+pub fn alpha_is_written_as_an_opacity_test() {
+  let theme =
+    sparklinekit.Theme(
+      foreground: "#FF000080",
+      background: "#0f08",
+      area: Some("#2563EB33"),
+      negative: "#000",
+    )
+  let options =
+    sparklinekit.LineOptions(..line(theme), area: sparklinekit.SolidArea)
+  let svg = render.line_svg(values, options)
+  assert string.contains(svg, "stroke=\"#ff0000\" stroke-opacity=\"0.502\"")
+  assert string.contains(svg, "fill=\"#00ff00\" fill-opacity=\"0.5333\"")
+  assert string.contains(svg, "<path fill=\"#2563eb\" fill-opacity=\"0.2\"")
+  assert !string.contains(svg, "#FF000080")
+  let svg =
+    render.bar_svg(values, bar(sparklinekit.Theme(..theme, negative: "#ABC")))
+  assert string.contains(svg, "fill=\"#ABC\"")
 }

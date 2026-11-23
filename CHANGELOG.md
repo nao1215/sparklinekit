@@ -15,9 +15,10 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 - The four chart renderers return `Result(String, InvalidColor)` or `Result(BitArray, InvalidColor)`. `blocks` is unchanged.
 - A colour is `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `none` or `currentColor`, with the keywords in any case. Anything else in the theme or in `spot_color`, such as `"red"`, `"rgb(0, 0, 0)"` or `""`, gives `Error(InvalidColor(field:, value:))`, where `field` is `"foreground"`, `"background"`, `"area"`, `"negative"` or `"spot_color"`. All four theme colours are checked, including one the chart does not draw.
 - An empty background or area colour is rejected. Use `"none"` for no background and `None` for the default area.
-- `none` draws nothing in both formats, so a foreground of `none` draws no line, no dot and no bars at or above zero, and a negative of `none` draws no bars below zero.
+- `none` draws nothing in both formats, so a foreground of `none` draws no line, no dot, no default area and no bars at or above zero, and a negative of `none` draws no bars below zero.
 - `currentColor` is drawn black in PNG output, which has no surrounding text colour, wherever it is used.
 - Since every colour that reaches the SVG text has been checked, colours are no longer escaped.
+- SVG output writes a colour with alpha (`#rgba`, `#rrggbbaa`, and the default area tint) as `#rrggbb` with a `fill-opacity`, `stroke-opacity` or `stop-opacity` attribute, because SVG 1.1 renderers do not read the alpha forms. Hex colours without alpha are still written as given.
 
 Before:
 

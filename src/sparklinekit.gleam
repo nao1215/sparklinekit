@@ -8,14 +8,16 @@
 ////   sparklinekit.blocks([1.0, 5.0, 22.0, 13.0, 5.0, 2.0, 7.0])
 ////   // -> "▁▂█▅▂▁▃"
 ////
-////   sparklinekit.line_svg(
-////     [1.0, 5.0, 3.0, 8.0, 4.0],
-////     LineOptions(
-////       ..sparklinekit.default_line_options,
-////       theme: sparklinekit.ocean,
-////       area: sparklinekit.GradientArea,
-////     ),
-////   )
+////   let assert Ok(svg) =
+////     sparklinekit.line_svg(
+////       [1.0, 5.0, 3.0, 8.0, 4.0],
+////       LineOptions(
+////         ..sparklinekit.default_line_options,
+////         theme: sparklinekit.ocean,
+////         area: sparklinekit.GradientArea,
+////       ),
+////     )
+////   svg
 //// }
 //// ```
 
@@ -55,9 +57,10 @@ pub type Theme {
     foreground: String,
     /// The background rectangle. `"none"` draws no background.
     background: String,
-    /// The area under a line. `None` uses the foreground at 22% opacity.
-    /// A colour without its own transparency is drawn opaque under the
-    /// line. Bar charts ignore it.
+    /// The area under a line. `None` uses the foreground at 22% opacity,
+    /// so it draws no area when the foreground is `none`. A colour without
+    /// its own transparency is drawn opaque under the line. Bar charts
+    /// ignore it.
     area: Option(String),
     /// The bars below zero. Line charts ignore it.
     negative: String,
@@ -228,10 +231,13 @@ pub type Area {
   NoArea
   /// One flat colour.
   SolidArea
-  /// The area colour at the line, fading to transparent at the baseline.
-  /// When the series has values on both sides of zero, the part above
-  /// zero fades downwards and the part below zero fades upwards, both to
-  /// transparent at the level of zero.
+  /// The area colour at the far edge of the area, the height of the largest
+  /// value, fading to transparent at the baseline. The opacity depends on
+  /// the height alone, so under a low point of the line the area is
+  /// already faint. When the series has values on both sides of zero, the
+  /// part above zero fades downwards from the largest value and the part
+  /// below zero fades upwards from the smallest, both to transparent at the
+  /// level of zero.
   GradientArea
 }
 
@@ -572,7 +578,7 @@ fn gradient_id(
   <> case zero_offset(gradient) {
     z if z >=. 1.0 -> ""
     z if z <=. 0.0 -> "-up"
-    z -> "-z" <> format.coord(z *. 100.0)
+    z -> "-z" <> float.to_string(z *. 100.0)
   }
 }
 
@@ -604,7 +610,7 @@ fn gradient_defs(
     ])
     z -> #("x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"", [
       gradient_stop("0%", fill, True),
-      gradient_stop(format.coord(z *. 100.0) <> "%", fill, False),
+      gradient_stop(float.to_string(z *. 100.0) <> "%", fill, False),
       gradient_stop("100%", fill, True),
     ])
   }
@@ -620,15 +626,19 @@ fn gradient_defs(
 }
 
 fn gradient_stop(offset: String, fill: color.Paint, solid: Bool) -> String {
-  let colour = case fill, solid {
-    color.Hex(rgba:, ..), True -> "\"" <> color.to_hex_rgba(rgba) <> "\""
-    color.Hex(rgba:, ..), False ->
-      "\"" <> color.to_hex_rgba(color.with_alpha(rgba, factor: 0.0)) <> "\""
-    color.CurrentColor(opacity:), True ->
-      "\"currentColor\" stop-opacity=\"" <> float.to_string(opacity) <> "\""
-    _, _ -> "\"currentColor\" stop-opacity=\"0\""
+  let #(colour, opacity) = color.svg_colour(fill)
+  let opacity = case solid, opacity <. 1.0 {
+    False, _ -> " stop-opacity=\"0\""
+    True, True -> " stop-opacity=\"" <> format.opacity(opacity) <> "\""
+    True, False -> ""
   }
-  "<stop offset=\"" <> offset <> "\" stop-color=" <> colour <> "/>"
+  "<stop offset=\""
+  <> offset
+  <> "\" stop-color=\""
+  <> colour
+  <> "\""
+  <> opacity
+  <> "/>"
 }
 
 fn area_path(
@@ -1109,22 +1119,19 @@ fn background_rect(
   }
 }
 
-// ` fill="..."` or ` stroke="..."`, with an opacity attribute when the
-// paint is a translucent `currentColor`. Every paint has been checked, so
-// none of them needs escaping.
+// ` fill="..."` or ` stroke="..."`, and an opacity attribute when the
+// paint is translucent. Every paint has been checked, so none of them
+// needs escaping.
 fn paint_attributes(paint: color.Paint, attribute: String) -> String {
-  case paint {
-    color.Hex(text:, ..) -> " " <> attribute <> "=\"" <> text <> "\""
-    color.NoPaint -> " " <> attribute <> "=\"none\""
-    color.CurrentColor(opacity:) ->
-      " "
-      <> attribute
-      <> "=\"currentColor\""
-      <> case opacity <. 1.0 {
-        True ->
-          " " <> attribute <> "-opacity=\"" <> float.to_string(opacity) <> "\""
-        False -> ""
-      }
+  let #(colour, opacity) = color.svg_colour(paint)
+  " "
+  <> attribute
+  <> "=\""
+  <> colour
+  <> "\""
+  <> case opacity <. 1.0 {
+    True -> " " <> attribute <> "-opacity=\"" <> format.opacity(opacity) <> "\""
+    False -> ""
   }
 }
 
