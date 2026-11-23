@@ -14,6 +14,7 @@ import gleam/int
 import gleam/list
 import gleam/string
 import gleeunit/should
+import render
 import sparklinekit
 
 const series = [3.0, 7.0, 1.0, 9.0, 4.0, 4.0, 8.0, 2.0]
@@ -74,38 +75,38 @@ const signed_bar =
   )
 
 pub fn line_svg_snapshots_test() -> Nil {
-  sparklinekit.line_svg(series, plain_line())
+  render.line_svg(series, plain_line())
   |> birdie.snap(title: "line svg, plain")
-  sparklinekit.line_svg(series, styled_line())
+  render.line_svg(series, styled_line())
   |> birdie.snap(title: "line svg, styled")
-  sparklinekit.line_svg(signed, signed_line())
+  render.line_svg(signed, signed_line())
   |> birdie.snap(title: "line svg, signed area")
 }
 
 pub fn bar_svg_snapshots_test() -> Nil {
-  sparklinekit.bar_svg(series, plain_bar())
+  render.bar_svg(series, plain_bar())
   |> birdie.snap(title: "bar svg, plain")
-  sparklinekit.bar_svg(signed, signed_bar)
+  render.bar_svg(signed, signed_bar)
   |> birdie.snap(title: "bar svg, signed rounded")
 }
 
 pub fn line_png_snapshots_test() -> Nil {
-  sparklinekit.line_png(series, plain_line())
+  render.line_png(series, plain_line())
   |> pixels
   |> birdie.snap(title: "line png, plain")
-  sparklinekit.line_png(series, styled_line())
+  render.line_png(series, styled_line())
   |> pixels
   |> birdie.snap(title: "line png, styled")
-  sparklinekit.line_png(signed, signed_line())
+  render.line_png(signed, signed_line())
   |> pixels
   |> birdie.snap(title: "line png, signed area")
 }
 
 pub fn bar_png_snapshots_test() -> Nil {
-  sparklinekit.bar_png(series, plain_bar())
+  render.bar_png(series, plain_bar())
   |> pixels
   |> birdie.snap(title: "bar png, plain")
-  sparklinekit.bar_png(signed, signed_bar)
+  render.bar_png(signed, signed_bar)
   |> pixels
   |> birdie.snap(title: "bar png, signed rounded")
 }

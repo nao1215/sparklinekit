@@ -20,6 +20,7 @@ import gleam/string
 import metamon
 import metamon/generator.{type Generator}
 import metamon/generator/range
+import render
 import sparklinekit
 
 fn series_gen() -> Generator(List(Int)) {
@@ -87,8 +88,8 @@ fn line_outputs(values: List(Int), styled: Bool) -> #(String, BitArray) {
   }
   let options = sparklinekit.LineOptions(..options, width: 60, height: 16)
   #(
-    sparklinekit.line_svg(values, options),
-    sparklinekit.line_png(values, options),
+    render.line_svg(values, options),
+    render.line_png(values, options),
   )
 }
 
@@ -102,8 +103,8 @@ fn bar_outputs(values: List(Int)) -> #(String, BitArray) {
       theme: sparklinekit.sunset,
     )
   #(
-    sparklinekit.bar_svg(values, options),
-    sparklinekit.bar_png(values, options),
+    render.bar_svg(values, options),
+    render.bar_png(values, options),
   )
 }
 

@@ -34,26 +34,40 @@ import sparklinekit/internal/scale
 
 // Themes ---------------------------------------------------------------------
 
-/// The colours of a line or bar chart. SVG output takes any CSS colour.
-/// PNG output reads only `#rgb`, `#rgba`, `#rrggbb` and `#rrggbbaa`. Any
-/// other foreground or negative colour is drawn black, any other background
-/// is left transparent, and any other area colour is replaced by the
-/// foreground at 22% opacity.
+/// The colours of a line or bar chart. Each colour is one of:
+///
+/// - `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`, with hex digits in either
+///   case.
+/// - `none`, which draws nothing.
+/// - `currentColor`, the colour of the text around an inline SVG. PNG
+///   output has no surrounding text and draws it black.
+///
+/// The keywords are matched without regard to case. The chart renderers
+/// check every colour of the theme before drawing and return
+/// `Error(InvalidColor(..))` for anything else, such as `"red"`, `"rgb(...)"`
+/// or `""`, so SVG and PNG output always agree on what a colour means.
 ///
 pub type Theme {
   Theme(
     /// The line, or the bars at or above zero.
     foreground: String,
-    /// The background rectangle. `"none"` or `""` draws no background.
+    /// The background rectangle. `"none"` draws no background.
     background: String,
-    /// The area under a line. `None` or `Some("")` uses the foreground at 22%
-    /// opacity, and `Some("none")` draws no area. SVG output draws any other
-    /// colour as given, so a colour without its own transparency is drawn
-    /// opaque under the line.
+    /// The area under a line. `None` uses the foreground at 22% opacity.
+    /// A colour without its own transparency is drawn opaque under the
+    /// line. Bar charts ignore it.
     area: Option(String),
     /// The bars below zero. Line charts ignore it.
     negative: String,
   )
+}
+
+/// The error the chart renderers return for a colour they do not accept.
+/// `field` is the name of the `Theme` field, or `"spot_color"`, and `value`
+/// is the colour as given. See `Theme` for the accepted colours.
+///
+pub type InvalidColor {
+  InvalidColor(field: String, value: String)
 }
 
 /// The theme of the default options: the surrounding CSS colour
@@ -213,8 +227,9 @@ pub type Area {
   /// One flat colour.
   SolidArea
   /// The area colour at the line, fading to transparent at the baseline.
-  /// In SVG, an area colour that is not hex is drawn flat, and a series
-  /// with values on both sides of zero fades from the top down.
+  /// When the series has values on both sides of zero, the part above
+  /// zero fades downwards and the part below zero fades upwards, both to
+  /// transparent at the level of zero.
   GradientArea
 }
 
@@ -244,8 +259,8 @@ pub type LineOptions {
     /// Radius of a dot on the last value. `0.0` draws no dot, and values
     /// above 10,000 are clamped.
     spot_radius: Float,
-    /// Colour of the dot. `None`, or a colour PNG output cannot read, uses
-    /// the theme's foreground.
+    /// Colour of the dot, in the forms `Theme` accepts. `None` uses the
+    /// theme's foreground.
     spot_color: Option(String),
   )
 }
@@ -278,83 +293,117 @@ const bezier_samples_per_segment: Int = 16
 ///
 /// An empty series gives an `<svg>` with no line. A single value, or a
 /// series where every value is the same, is drawn as a flat line at half
-/// height.
+/// height. A colour that `Theme` does not accept, in the theme or in
+/// `spot_color`, gives `Error(InvalidColor(..))`.
 ///
 /// ## Examples
 ///
 /// ```gleam
 /// sparklinekit.line_svg([1.0, 5.0, 3.0], sparklinekit.default_line_options)
-/// // -> "<svg ...><path fill=\"none\" stroke=\"currentColor\" ... d=\"M 1.0 59.0 L 120.0 1.0 L 239.0 30.0\"/></svg>"
+/// // -> Ok("<svg ...><path fill=\"none\" stroke=\"currentColor\" ... d=\"M 1.0 59.0 L 120.0 1.0 L 239.0 30.0\"/></svg>")
 /// ```
 ///
 /// ```gleam
 /// sparklinekit.line_svg([], sparklinekit.default_line_options)
-/// // -> "<svg ...></svg>"
+/// // -> Ok("<svg ...></svg>")
 /// ```
 ///
-pub fn line_svg(values: List(Float), options: LineOptions) -> String {
+pub fn line_svg(
+  values: List(Float),
+  options: LineOptions,
+) -> Result(String, InvalidColor) {
   let options = sanitise_line(options)
+  use palette <- result.try(check_theme(options.theme))
+  use spot <- result.map(check_spot(options.spot_color, palette.foreground))
   let points = line_points(values, options)
-  let fill = case options.area, points {
-    NoArea, _ | _, [] | _, [_] -> Error(Nil)
-    area, _ -> Ok(svg_area_fill(area, options.theme, values, options))
-  }
-  let defs = case fill {
-    Ok(GradientFill(id:, top:, upward:)) -> gradient_defs(id, top, upward)
-    _ -> string_tree.new()
-  }
-  let area_layer = case fill {
-    Ok(fill) -> area_path(fill, points, values, options)
-    Error(_) -> string_tree.new()
+  let #(defs, area_layer) = case options.area, palette.area, points {
+    NoArea, _, _ | _, color.NoPaint, _ | _, _, [] -> #(
+      string_tree.new(),
+      string_tree.new(),
+    )
+    SolidArea, fill, _ -> #(
+      string_tree.new(),
+      area_path(paint_attributes(fill, "fill"), points, values, options),
+    )
+    GradientArea, fill, _ -> {
+      let gradient = area_gradient(points, values, options)
+      let id = gradient_id(fill, gradient, values, options)
+      #(
+        gradient_defs(id, fill, gradient),
+        area_path(" fill=\"url(#" <> id <> ")\"", points, values, options),
+      )
+    }
   }
   svg_document(options.width, options.height, [
     defs,
-    background_rect(options.width, options.height, options.theme.background),
+    background_rect(options.width, options.height, palette.background),
     area_layer,
-    stroke_path(points, options),
-    spot_circle(points, options),
+    stroke_path(points, palette.foreground, options),
+    spot_circle(points, spot, options),
   ])
 }
 
 /// Draws the same chart as `line_svg` as 8-bit RGBA PNG bytes, with an
 /// anti-aliased line. The image is not compressed, so it is about
-/// `width * height * 4` bytes.
+/// `width * height * 4` bytes. A colour that `Theme` does not accept gives
+/// `Error(InvalidColor(..))`.
 ///
 /// ## Examples
 ///
 /// ```gleam
-/// let png = sparklinekit.line_png([1.0, 5.0, 3.0], sparklinekit.default_line_options)
+/// let assert Ok(png) =
+///   sparklinekit.line_png([1.0, 5.0, 3.0], sparklinekit.default_line_options)
 /// simplifile.write_bits(to: "chart.png", bits: png)
 /// ```
 ///
-pub fn line_png(values: List(Float), options: LineOptions) -> BitArray {
+pub fn line_png(
+  values: List(Float),
+  options: LineOptions,
+) -> Result(BitArray, InvalidColor) {
   let options = sanitise_line(options)
-  let theme = options.theme
-  let foreground = color.parse_or(theme.foreground, fallback: color.black)
+  use palette <- result.try(check_theme(options.theme))
+  use spot <- result.map(check_spot(options.spot_color, palette.foreground))
   let points = line_points(values, options)
   let path = sampled_path(points, options.smoothing)
-  let canvas = raster.new(options.width, options.height, background_rgba(theme))
-  let canvas = case options.area, area_colour(theme) {
-    NoArea, _ | _, Some("none") -> canvas
-    area, _ ->
+  let canvas =
+    raster.new(
+      options.width,
+      options.height,
+      color.paint_rgba(palette.background),
+    )
+  let canvas = case options.area, palette.area, points {
+    NoArea, _, _ | _, color.NoPaint, _ | _, _, [] -> canvas
+    area, fill, _ ->
       fill_area(
         canvas,
         path,
         int.to_float(options.height),
-        area_baseline(values, options),
-        png_area_colour(theme, foreground),
+        area_gradient(points, values, options),
+        color.paint_rgba(fill),
         area == GradientArea,
       )
   }
-  let canvas = draw_stroke(canvas, path, options.stroke_width, foreground)
-  let canvas = case options.spot_radius >. 0.0, list.last(points) {
-    True, Ok(#(x, y)) -> {
-      let spot =
-        option.unwrap(options.spot_color, theme.foreground)
-        |> color.parse_or(fallback: foreground)
-      raster.fill_circle(canvas, x, y, options.spot_radius, spot)
-    }
-    _, _ -> canvas
+  let canvas = case palette.foreground {
+    color.NoPaint -> canvas
+    foreground ->
+      draw_stroke(
+        canvas,
+        path,
+        options.stroke_width,
+        color.paint_rgba(foreground),
+      )
+  }
+  let canvas = case options.spot_radius >. 0.0, list.last(points), spot {
+    _, _, color.NoPaint -> canvas
+    True, Ok(#(x, y)), spot ->
+      raster.fill_circle(
+        canvas,
+        x,
+        y,
+        options.spot_radius,
+        color.paint_rgba(spot),
+      )
+    _, _, _ -> canvas
   }
   png.encode(
     raster.to_grid(canvas),
@@ -380,6 +429,16 @@ fn sanitise_line(options: LineOptions) -> LineOptions {
       max: max_spot_radius,
     ),
   )
+}
+
+fn check_spot(
+  spot_color: Option(String),
+  foreground: color.Paint,
+) -> Result(color.Paint, InvalidColor) {
+  case spot_color {
+    None -> Ok(foreground)
+    Some(value) -> check_colour("spot_color", value)
+  }
 }
 
 // The y range the line is drawn in, inset so the stroke and the dot stay
@@ -446,44 +505,29 @@ fn area_baseline(values: List(Float), options: LineOptions) -> Float {
   }
 }
 
-type SvgAreaFill {
-  // `upward` is set when the area lies above the line, so the gradient
-  // runs from the bottom up.
-  GradientFill(id: String, top: Rgba, upward: Bool)
-  FlatFill(color: String)
-  // A CSS colour that cannot carry its own alpha, such as `currentColor`.
-  TranslucentFill(color: String)
+// How the gradient area is shaded. `upward` is set when the area lies
+// above the line, so the gradient runs from the bottom up.
+type AreaGradient {
+  AreaGradient(baseline: Float, upward: Bool)
 }
 
-fn svg_area_fill(
-  area: Area,
-  theme: Theme,
+fn area_gradient(
+  _points: List(#(Float, Float)),
   values: List(Float),
   options: LineOptions,
-) -> SvgAreaFill {
-  let area_colour = area_colour(theme)
-  let hex = case area_colour {
-    Some(c) -> color.parse_hex(c)
-    None ->
-      color.parse_hex(theme.foreground)
-      |> result.map(color.with_alpha(_, factor: area_alpha))
-  }
+) -> AreaGradient {
   let #(lo, hi) = scale.min_max(values)
-  let upward = lo <. 0.0 && hi <=. 0.0
-  case area, hex, area_colour {
-    GradientArea, Ok(top), _ ->
-      GradientFill(id: gradient_id(top, upward, values, options), top:, upward:)
-    _, _, Some(c) -> FlatFill(c)
-    _, Ok(tint), None -> FlatFill(color.to_hex_rgba(tint))
-    _, Error(_), None -> TranslucentFill(theme.foreground)
-  }
+  AreaGradient(
+    baseline: area_baseline(values, options),
+    upward: lo <. 0.0 && hi <=. 0.0,
+  )
 }
 
 // The id includes the size, the value count and the colour, so several
 // charts inlined into one page do not share a gradient by accident.
 fn gradient_id(
-  top: Rgba,
-  upward: Bool,
+  fill: color.Paint,
+  gradient: AreaGradient,
   values: List(Float),
   options: LineOptions,
 ) -> String {
@@ -494,24 +538,28 @@ fn gradient_id(
   <> "-"
   <> int.to_string(list.length(values))
   <> "-"
-  <> string.replace(color.to_hex_rgba(top), "#", "")
-  <> case upward {
+  <> paint_token(fill)
+  <> case gradient.upward {
     True -> "-up"
     False -> ""
   }
 }
 
-// An empty area colour means the same as none, as it does for the
-// background.
-fn area_colour(theme: Theme) -> Option(String) {
-  case theme.area {
-    Some("") -> None
-    other -> other
+fn paint_token(paint: color.Paint) -> String {
+  case paint {
+    color.Hex(rgba:, ..) -> string.replace(color.to_hex_rgba(rgba), "#", "")
+    color.CurrentColor(opacity:) ->
+      "current" <> int.to_string(float.round(opacity *. 100.0))
+    color.NoPaint -> "none"
   }
 }
 
-fn gradient_defs(id: String, top: Rgba, upward: Bool) -> StringTree {
-  let direction = case upward {
+fn gradient_defs(
+  id: String,
+  fill: color.Paint,
+  gradient: AreaGradient,
+) -> StringTree {
+  let direction = case gradient.upward {
     True -> "\" x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\">"
     False -> "\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">"
   }
@@ -519,30 +567,30 @@ fn gradient_defs(id: String, top: Rgba, upward: Bool) -> StringTree {
     "<defs><linearGradient id=\"",
     id,
     direction,
-    "<stop offset=\"0%\" stop-color=\"",
-    color.to_hex_rgba(top),
-    "\"/>",
-    "<stop offset=\"100%\" stop-color=\"",
-    color.to_hex_rgba(color.with_alpha(top, factor: 0.0)),
-    "\"/>",
+    gradient_stop("0%", fill, True),
+    gradient_stop("100%", fill, False),
     "</linearGradient></defs>",
   ])
 }
 
+fn gradient_stop(offset: String, fill: color.Paint, solid: Bool) -> String {
+  let colour = case fill, solid {
+    color.Hex(rgba:, ..), True -> "\"" <> color.to_hex_rgba(rgba) <> "\""
+    color.Hex(rgba:, ..), False ->
+      "\"" <> color.to_hex_rgba(color.with_alpha(rgba, factor: 0.0)) <> "\""
+    color.CurrentColor(opacity:), True ->
+      "\"currentColor\" stop-opacity=\"" <> float.to_string(opacity) <> "\""
+    _, _ -> "\"currentColor\" stop-opacity=\"0\""
+  }
+  "<stop offset=\"" <> offset <> "\" stop-color=" <> colour <> "/>"
+}
+
 fn area_path(
-  fill: SvgAreaFill,
+  fill: String,
   points: List(#(Float, Float)),
   values: List(Float),
   options: LineOptions,
 ) -> StringTree {
-  let #(fill, opacity) = case fill {
-    GradientFill(id:, ..) -> #("url(#" <> id <> ")", "")
-    FlatFill(c) -> #(escape_attribute(c), "")
-    TranslucentFill(c) -> #(
-      escape_attribute(c),
-      " fill-opacity=\"" <> float.to_string(area_alpha) <> "\"",
-    )
-  }
   let baseline = format.coord(area_baseline(values, options))
   let first_x = case points {
     [#(x, _), ..] -> x
@@ -553,10 +601,8 @@ fn area_path(
     Error(_) -> int.to_float(options.width)
   }
   string_tree.from_strings([
-    "<path fill=\"",
+    "<path",
     fill,
-    "\"",
-    opacity,
     " stroke=\"none\" d=\"",
     path_data(points, options.smoothing),
     " L ",
@@ -573,15 +619,16 @@ fn area_path(
 
 fn stroke_path(
   points: List(#(Float, Float)),
+  foreground: color.Paint,
   options: LineOptions,
 ) -> StringTree {
-  case points {
-    [] -> string_tree.new()
-    _ ->
+  case points, foreground {
+    [], _ | _, color.NoPaint -> string_tree.new()
+    _, _ ->
       string_tree.from_strings([
-        "<path fill=\"none\" stroke=\"",
-        escape_attribute(options.theme.foreground),
-        "\" stroke-width=\"",
+        "<path fill=\"none\"",
+        paint_attributes(foreground, "stroke"),
+        " stroke-width=\"",
         format.coord(options.stroke_width),
         "\" stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"",
         path_data(points, options.smoothing),
@@ -592,10 +639,12 @@ fn stroke_path(
 
 fn spot_circle(
   points: List(#(Float, Float)),
+  spot: color.Paint,
   options: LineOptions,
 ) -> StringTree {
-  case options.spot_radius >. 0.0, list.last(points) {
-    True, Ok(#(x, y)) ->
+  case options.spot_radius >. 0.0, list.last(points), spot {
+    _, _, color.NoPaint -> string_tree.new()
+    True, Ok(#(x, y)), _ ->
       string_tree.from_strings([
         "<circle cx=\"",
         format.coord(x),
@@ -603,14 +652,11 @@ fn spot_circle(
         format.coord(y),
         "\" r=\"",
         format.coord(options.spot_radius),
-        "\" fill=\"",
-        escape_attribute(option.unwrap(
-          options.spot_color,
-          options.theme.foreground,
-        )),
-        "\"/>",
+        "\"",
+        paint_attributes(spot, "fill"),
+        "/>",
       ])
-    _, _ -> string_tree.new()
+    _, _, _ -> string_tree.new()
   }
 }
 
@@ -699,23 +745,15 @@ fn cubic_at(
   )
 }
 
-fn png_area_colour(theme: Theme, foreground: Rgba) -> Rgba {
-  let tint = color.with_alpha(foreground, factor: area_alpha)
-  case area_colour(theme) {
-    Some(c) -> color.parse_or(c, fallback: tint)
-    None -> tint
-  }
-}
-
 fn fill_area(
   canvas: raster.Canvas,
   path: List(#(Float, Float)),
   height: Float,
-  baseline: Float,
+  gradient: AreaGradient,
   fill: Rgba,
-  gradient: Bool,
+  shaded: Bool,
 ) -> raster.Canvas {
-  let baseline = float.clamp(baseline, min: 0.0, max: height)
+  let baseline = float.clamp(gradient.baseline, min: 0.0, max: height)
   let transparent = color.with_alpha(fill, factor: 0.0)
   use canvas, #(#(x0, y0), #(x1, y1)) <- list.fold(
     list.window_by_2(path),
@@ -735,7 +773,7 @@ fn fill_area(
     True -> #(line_y, baseline, fill, transparent)
     False -> #(baseline, line_y, transparent, fill)
   }
-  case bottom -. top >. 0.0, gradient {
+  case bottom -. top >. 0.0, shaded {
     False, _ -> canvas
     True, False -> raster.fill_rect(canvas, x, top, 1.0, bottom -. top, fill)
     True, True ->
@@ -810,6 +848,7 @@ const min_bar_height: Float = 1.0
 /// An empty series gives an `<svg>` with no bars. A single value, or a
 /// series where every value is the same, is drawn as half-height bars,
 /// standing on the bottom edge or hanging from the top for negative values.
+/// A colour that `Theme` does not accept gives `Error(InvalidColor(..))`.
 ///
 /// ## Examples
 ///
@@ -818,16 +857,18 @@ const min_bar_height: Float = 1.0
 ///   [3.0, -2.0, 5.0],
 ///   BarOptions(..sparklinekit.default_bar_options, theme: sparklinekit.forest),
 /// )
+/// // -> Ok("<svg ...><rect ... fill=\"#10B981\"/>...</svg>")
 /// ```
 ///
-pub fn bar_svg(values: List(Float), options: BarOptions) -> String {
+pub fn bar_svg(
+  values: List(Float),
+  options: BarOptions,
+) -> Result(String, InvalidColor) {
   let options = sanitise_bar(options)
-  let theme = options.theme
-  let positive = escape_attribute(theme.foreground)
-  let negative = escape_attribute(theme.negative)
+  use palette <- result.map(check_theme(options.theme))
   let bars =
     bar_rects(values, options)
-    |> list.map(fn(rect) {
+    |> list.filter_map(fn(rect) {
       let radius =
         options.corner_radius
         |> float.min(rect.width /. 2.0)
@@ -836,58 +877,65 @@ pub fn bar_svg(values: List(Float), options: BarOptions) -> String {
         True -> " rx=\"" <> format.coord(radius) <> "\""
         False -> ""
       }
-      let fill = case rect.value <. 0.0 {
-        True -> negative
-        False -> positive
+      case bar_paint(rect, palette) {
+        color.NoPaint -> Error(Nil)
+        fill ->
+          Ok(
+            string_tree.from_strings([
+              "<rect x=\"",
+              format.coord(rect.x),
+              "\" y=\"",
+              format.coord(rect.y),
+              "\" width=\"",
+              format.coord(rect.width),
+              "\" height=\"",
+              format.coord(rect.height),
+              "\"",
+              paint_attributes(fill, "fill"),
+              radius,
+              "/>",
+            ]),
+          )
       }
-      string_tree.from_strings([
-        "<rect x=\"",
-        format.coord(rect.x),
-        "\" y=\"",
-        format.coord(rect.y),
-        "\" width=\"",
-        format.coord(rect.width),
-        "\" height=\"",
-        format.coord(rect.height),
-        "\" fill=\"",
-        fill,
-        "\"",
-        radius,
-        "/>",
-      ])
     })
   svg_document(options.width, options.height, [
-    background_rect(options.width, options.height, theme.background),
+    background_rect(options.width, options.height, palette.background),
     ..bars
   ])
 }
 
 /// Draws the same chart as `bar_svg` as 8-bit RGBA PNG bytes. The image is
-/// not compressed, so it is about `width * height * 4` bytes.
+/// not compressed, so it is about `width * height * 4` bytes. A colour that
+/// `Theme` does not accept gives `Error(InvalidColor(..))`.
 ///
-pub fn bar_png(values: List(Float), options: BarOptions) -> BitArray {
+pub fn bar_png(
+  values: List(Float),
+  options: BarOptions,
+) -> Result(BitArray, InvalidColor) {
   let options = sanitise_bar(options)
-  let theme = options.theme
-  let positive = color.parse_or(theme.foreground, fallback: color.black)
-  let negative = color.parse_or(theme.negative, fallback: color.black)
+  use palette <- result.map(check_theme(options.theme))
   let canvas =
     list.fold(
       bar_rects(values, options),
-      raster.new(options.width, options.height, background_rgba(theme)),
+      raster.new(
+        options.width,
+        options.height,
+        color.paint_rgba(palette.background),
+      ),
       fn(canvas, rect) {
-        let colour = case rect.value <. 0.0 {
-          True -> negative
-          False -> positive
+        case bar_paint(rect, palette) {
+          color.NoPaint -> canvas
+          fill ->
+            raster.fill_rounded_rect(
+              canvas,
+              rect.x,
+              rect.y,
+              rect.width,
+              rect.height,
+              options.corner_radius,
+              color.paint_rgba(fill),
+            )
         }
-        raster.fill_rounded_rect(
-          canvas,
-          rect.x,
-          rect.y,
-          rect.width,
-          rect.height,
-          options.corner_radius,
-          colour,
-        )
       },
     )
   png.encode(
@@ -895,6 +943,13 @@ pub fn bar_png(values: List(Float), options: BarOptions) -> BitArray {
     width: options.width,
     height: options.height,
   )
+}
+
+fn bar_paint(rect: Rect, palette: Palette) -> color.Paint {
+  case rect.value <. 0.0 {
+    True -> palette.negative
+    False -> palette.foreground
+  }
 }
 
 fn sanitise_bar(options: BarOptions) -> BarOptions {
@@ -994,30 +1049,69 @@ fn svg_document(width: Int, height: Int, layers: List(StringTree)) -> String {
   |> string_tree.to_string
 }
 
-fn background_rect(width: Int, height: Int, background: String) -> StringTree {
+fn background_rect(
+  width: Int,
+  height: Int,
+  background: color.Paint,
+) -> StringTree {
   case background {
-    "none" | "" -> string_tree.new()
+    color.NoPaint -> string_tree.new()
     _ ->
       string_tree.from_strings([
         "<rect x=\"0\" y=\"0\" width=\"",
         int.to_string(width),
         "\" height=\"",
         int.to_string(height),
-        "\" fill=\"",
-        escape_attribute(background),
-        "\"/>",
+        "\"",
+        paint_attributes(background, "fill"),
+        "/>",
       ])
   }
 }
 
-fn background_rgba(theme: Theme) -> Rgba {
-  color.parse_or(theme.background, fallback: color.transparent)
+// ` fill="..."` or ` stroke="..."`, with an opacity attribute when the
+// paint is a translucent `currentColor`. Every paint has been checked, so
+// none of them needs escaping.
+fn paint_attributes(paint: color.Paint, attribute: String) -> String {
+  case paint {
+    color.Hex(text:, ..) -> " " <> attribute <> "=\"" <> text <> "\""
+    color.NoPaint -> " " <> attribute <> "=\"none\""
+    color.CurrentColor(opacity:) ->
+      " "
+      <> attribute
+      <> "=\"currentColor\""
+      <> case opacity <. 1.0 {
+        True ->
+          " " <> attribute <> "-opacity=\"" <> float.to_string(opacity) <> "\""
+        False -> ""
+      }
+  }
 }
 
-fn escape_attribute(value: String) -> String {
-  value
-  |> string.replace("&", "&amp;")
-  |> string.replace("\"", "&quot;")
-  |> string.replace("<", "&lt;")
-  |> string.replace(">", "&gt;")
+// Colours ---------------------------------------------------------------------
+
+// The theme's colours, checked.
+type Palette {
+  Palette(
+    foreground: color.Paint,
+    background: color.Paint,
+    area: color.Paint,
+    negative: color.Paint,
+  )
+}
+
+fn check_theme(theme: Theme) -> Result(Palette, InvalidColor) {
+  use foreground <- result.try(check_colour("foreground", theme.foreground))
+  use background <- result.try(check_colour("background", theme.background))
+  use area <- result.try(case theme.area {
+    None -> Ok(color.fade(foreground, factor: area_alpha))
+    Some(value) -> check_colour("area", value)
+  })
+  use negative <- result.map(check_colour("negative", theme.negative))
+  Palette(foreground:, background:, area:, negative:)
+}
+
+fn check_colour(field: String, value: String) -> Result(color.Paint, InvalidColor) {
+  color.parse_paint(value)
+  |> result.replace_error(InvalidColor(field:, value:))
 }

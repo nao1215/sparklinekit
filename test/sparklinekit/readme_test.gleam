@@ -6,7 +6,7 @@
 import gleam/list
 import gleam/string
 import simplifile
-import sparklinekit.{BarOptions, LineOptions, Theme}
+import sparklinekit.{type InvalidColor, BarOptions, LineOptions, Theme}
 
 pub fn latency_sample() -> String {
   let latency = [12.0, 14.0, 13.0, 40.0, 85.0, 33.0, 15.0, 12.0, 11.0, 13.0]
@@ -17,7 +17,7 @@ pub fn latency_test() {
   assert latency_sample() == "latency  ▁▁▁▄█▃▁▁▁▁"
 }
 
-pub fn revenue_chart() -> String {
+pub fn revenue_chart() -> Result(String, InvalidColor) {
   sparklinekit.line_svg(
     [1.0, 5.0, 3.0, 8.0, 4.0, 9.0, 6.0],
     LineOptions(
@@ -31,7 +31,7 @@ pub fn revenue_chart() -> String {
 }
 
 pub fn revenue_chart_test() {
-  let svg = revenue_chart()
+  let assert Ok(svg) = revenue_chart()
   assert string.starts_with(svg, "<svg xmlns=\"http://www.w3.org/2000/svg\"")
   assert string.contains(svg, "stroke=\"#2563EB\"")
   assert string.contains(svg, "<linearGradient")
@@ -39,7 +39,7 @@ pub fn revenue_chart_test() {
   assert string.contains(svg, "<circle")
 }
 
-pub fn win_loss_chart() -> String {
+pub fn win_loss_chart() -> Result(String, InvalidColor) {
   sparklinekit.bar_svg(
     [3.0, -2.0, 5.0, -4.0, 6.0, -1.0],
     BarOptions(
@@ -55,17 +55,19 @@ pub fn win_loss_chart() -> String {
 }
 
 pub fn win_loss_chart_test() {
-  let svg = win_loss_chart()
+  let assert Ok(svg) = win_loss_chart()
   assert string.split(svg, "fill=\"#22A06B\"") |> list.length == 4
   assert string.split(svg, "fill=\"#E5484D\"") |> list.length == 4
 }
 
 pub fn save_chart() {
-  sparklinekit.line_png(
-    [1.0, 5.0, 3.0, 8.0, 4.0],
-    sparklinekit.default_line_options,
-  )
-  |> simplifile.write_bits(to: "build/readme-chart.png", bits: _)
+  // The default theme's colours are all valid, so this cannot fail.
+  let assert Ok(png) =
+    sparklinekit.line_png(
+      [1.0, 5.0, 3.0, 8.0, 4.0],
+      sparklinekit.default_line_options,
+    )
+  simplifile.write_bits(to: "build/readme-chart.png", bits: png)
 }
 
 pub fn save_chart_test() {
@@ -77,13 +79,14 @@ pub fn save_chart_test() {
 
 pub fn empty_series_test() {
   assert sparklinekit.blocks([]) == ""
-  let svg = sparklinekit.bar_svg([], sparklinekit.default_bar_options)
+  let assert Ok(svg) = sparklinekit.bar_svg([], sparklinekit.default_bar_options)
   assert !string.contains(svg, "<rect")
 }
 
 pub fn constant_series_test() {
   assert sparklinekit.blocks([5.0, 5.0, 5.0]) == "▄▄▄"
-  let svg = sparklinekit.bar_svg([5.0], sparklinekit.default_bar_options)
+  let assert Ok(svg) =
+    sparklinekit.bar_svg([5.0], sparklinekit.default_bar_options)
   assert string.contains(svg, "y=\"20.0\"")
   assert string.contains(svg, "height=\"20.0\"")
 }

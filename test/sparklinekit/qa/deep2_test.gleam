@@ -1,8 +1,8 @@
 //// Round 2 deep QA — five more defects.
 
-import gleam/option
 import gleam/string
 import gleeunit/should
+import render
 import sparklinekit
 
 // --- Bug 6: extreme `stroke_width` overflows `format.coord`.
@@ -17,7 +17,7 @@ import sparklinekit
 
 pub fn bug6_extreme_stroke_width_does_not_crash_svg_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -34,7 +34,7 @@ pub fn bug6_extreme_stroke_width_does_not_crash_svg_test() {
 
 pub fn bug7_extreme_spot_radius_does_not_crash_svg_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -53,33 +53,9 @@ pub fn bug7_extreme_spot_radius_does_not_crash_svg_test() {
 // grow *into* the canvas, away from the nearer edge.
 
 pub fn bug8_hairline_stays_inside_canvas_for_top_baseline_test() {
-  let svg = sparklinekit.bar_svg([0.0, -5.0], sparklinekit.default_bar_options)
+  let svg = render.bar_svg([0.0, -5.0], sparklinekit.default_bar_options)
   // No rect y attribute may be negative.
   string.contains(svg, "y=\"-") |> should.be_false
-}
-
-// --- Bug 9: the theme's `area` accepts "any CSS colour string" per
-// the docs, but when the value is not parseable as hex AND the
-// default gradient is enabled, the renderer silently substitutes
-// the stroke colour (or black for the default theme). The user's
-// literal colour disappears from the output. Gradient mode must
-// either honour the literal colour or skip the gradient entirely.
-
-pub fn bug9_gradient_non_hex_area_color_uses_colour_literal_test() {
-  let svg =
-    sparklinekit.line_svg(
-      [1.0, 2.0, 3.0],
-      sparklinekit.LineOptions(
-        ..sparklinekit.default_line_options,
-        theme: sparklinekit.Theme(
-          ..sparklinekit.default_theme,
-          area: option.Some("rgb(255, 0, 0)"),
-        ),
-        area: sparklinekit.GradientArea,
-      ),
-    )
-  string.contains(svg, "rgb(255, 0, 0)") |> should.be_true
-  string.contains(svg, "stop-color=\"#00000038\"") |> should.be_false
 }
 
 // --- Bug 10: with the default theme — where `theme.foreground` is
@@ -95,7 +71,7 @@ pub fn bug9_gradient_non_hex_area_color_uses_colour_literal_test() {
 
 pub fn bug10_default_theme_area_fill_inherits_currentcolor_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,

@@ -6,6 +6,7 @@
 
 import gleam/string
 import gleeunit/should
+import render
 import sparklinekit
 
 // --- Bug 2: the default options ignored the negative-bar colour of
@@ -14,7 +15,7 @@ import sparklinekit
 
 pub fn bug2_bar_default_theme_negative_colour_is_used_test() {
   let svg =
-    sparklinekit.bar_svg([3.0, -2.0, 5.0], sparklinekit.default_bar_options)
+    render.bar_svg([3.0, -2.0, 5.0], sparklinekit.default_bar_options)
   string.contains(svg, "fill=\"#EF4444\"")
   |> should.be_true
 }
@@ -41,7 +42,7 @@ pub fn bug3_unicode_extreme_float_range_does_not_crash_test() {
 // of exactly zero is still drawn.
 
 pub fn bug4_bar_zero_value_renders_nonzero_height_test() {
-  let svg = sparklinekit.bar_svg([0.0, 5.0], sparklinekit.default_bar_options)
+  let svg = render.bar_svg([0.0, 5.0], sparklinekit.default_bar_options)
   string.contains(svg, "height=\"0.0\"")
   |> should.be_false
 }
@@ -57,7 +58,7 @@ pub fn bug5_line_extreme_float_svg_has_no_non_finite_coordinates_test() {
   let huge = 1.0e308
   let neg_huge = 0.0 -. 1.0e308
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [neg_huge, 0.0, huge],
       sparklinekit.default_line_options,
     )

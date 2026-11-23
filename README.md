@@ -33,12 +33,12 @@ pub fn main() {
 
 ## Line and bar charts
 
-`line_svg` and `bar_svg` return a standalone `<svg>` element, and `line_png` and `bar_png` return the same chart as PNG bytes. Both take a record of options; start from the defaults and change the fields you need.
+`line_svg` and `bar_svg` return a standalone `<svg>` element, and `line_png` and `bar_png` return the same chart as PNG bytes. Both take a record of options; start from the defaults and change the fields you need. They return `Error(InvalidColor(..))` when a colour is not one of the forms listed under [Themes](#themes).
 
 ```gleam
-import sparklinekit.{LineOptions}
+import sparklinekit.{type InvalidColor, LineOptions}
 
-pub fn revenue_chart() -> String {
+pub fn revenue_chart() -> Result(String, InvalidColor) {
   sparklinekit.line_svg(
     [1.0, 5.0, 3.0, 8.0, 4.0, 9.0, 6.0],
     LineOptions(
@@ -55,9 +55,9 @@ pub fn revenue_chart() -> String {
 Bars grow from zero, so negative values hang below it in the theme's `negative` colour:
 
 ```gleam
-import sparklinekit.{BarOptions, Theme}
+import sparklinekit.{type InvalidColor, BarOptions, Theme}
 
-pub fn win_loss_chart() -> String {
+pub fn win_loss_chart() -> Result(String, InvalidColor) {
   sparklinekit.bar_svg(
     [3.0, -2.0, 5.0, -4.0, 6.0, -1.0],
     BarOptions(
@@ -82,14 +82,16 @@ import simplifile
 import sparklinekit
 
 pub fn save_chart() {
-  sparklinekit.line_png([1.0, 5.0, 3.0, 8.0, 4.0], sparklinekit.default_line_options)
-  |> simplifile.write_bits(to: "chart.png", bits: _)
+  // The default theme's colours are all valid, so this cannot fail.
+  let assert Ok(png) =
+    sparklinekit.line_png([1.0, 5.0, 3.0, 8.0, 4.0], sparklinekit.default_line_options)
+  simplifile.write_bits(to: "chart.png", bits: png)
 }
 ```
 
 ## Themes
 
-A `Theme` holds the foreground, background, area and negative colours. The default theme draws in `currentColor`, so an SVG chart takes the colour of the text around it. The package also has ten fixed themes:
+A `Theme` holds the foreground, background, area and negative colours. Each colour is `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `none` (draw nothing) or `currentColor`; anything else, such as `"red"`, is rejected before drawing, so SVG and PNG output agree. The default theme draws in `currentColor`, so an SVG chart takes the colour of the text around it; PNG output has no surrounding text and draws `currentColor` black. The package also has ten fixed themes:
 
 | Theme | Foreground | Background | Negative | Preview |
 |---|---|---|---|---|
@@ -107,7 +109,7 @@ A `Theme` holds the foreground, background, area and negative colours. The defau
 ## Notes
 
 - An empty series gives an empty string, or an `<svg>` and a PNG with nothing drawn. A single value, or a series where every value is the same, is drawn as the middle block, a flat line at half height, or half-height bars.
-- SVG output escapes `&`, `"`, `<` and `>` in colours, but it is not sanitised for embedding in arbitrary HTML. PNG output reads only hex colours (`#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`).
+- Only the colour forms above reach the SVG text, so no option can add markup or attributes to it.
 - PNG output is not compressed, so an image is about `width * height * 4` bytes. Use SVG when size matters.
 - How the package is tested is described in [doc/testing.md](doc/testing.md).
 

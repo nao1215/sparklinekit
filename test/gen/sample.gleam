@@ -5,6 +5,7 @@
 import gleam/list
 import gleam/option.{None}
 import simplifile
+import render
 import sparklinekit.{
   type BarOptions, type LineOptions, type Theme, BarOptions, LineOptions,
 }
@@ -77,11 +78,11 @@ fn write_theme_preview(name: String, theme: Theme) -> Nil {
 fn write_line(name: String, values: List(Float), options: LineOptions) -> Nil {
   let path = out_dir <> "/" <> name
   let assert Ok(Nil) =
-    simplifile.write(path <> ".svg", sparklinekit.line_svg(values, options))
+    simplifile.write(path <> ".svg", render.line_svg(values, options))
   let assert Ok(Nil) =
     simplifile.write_bits(
       path <> ".png",
-      sparklinekit.line_png(values, options),
+      render.line_png(values, options),
     )
   Nil
 }
@@ -89,8 +90,8 @@ fn write_line(name: String, values: List(Float), options: LineOptions) -> Nil {
 fn write_bar(name: String, values: List(Float), options: BarOptions) -> Nil {
   let path = out_dir <> "/" <> name
   let assert Ok(Nil) =
-    simplifile.write(path <> ".svg", sparklinekit.bar_svg(values, options))
+    simplifile.write(path <> ".svg", render.bar_svg(values, options))
   let assert Ok(Nil) =
-    simplifile.write_bits(path <> ".png", sparklinekit.bar_png(values, options))
+    simplifile.write_bits(path <> ".png", render.bar_png(values, options))
   Nil
 }

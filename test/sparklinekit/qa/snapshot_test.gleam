@@ -10,6 +10,7 @@
 import gleam/bit_array
 import gleam/string
 import gleeunit/should
+import render
 import sparklinekit
 
 const png_signature: BitArray = <<137, 80, 78, 71, 13, 10, 26, 10>>
@@ -18,7 +19,7 @@ const png_signature: BitArray = <<137, 80, 78, 71, 13, 10, 26, 10>>
 
 pub fn snapshot_minimal_line_attributes_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 5.0, 3.0, 8.0, 4.0],
       sparklinekit.default_line_options,
     )
@@ -39,7 +40,7 @@ pub fn snapshot_minimal_line_attributes_test() {
 
 pub fn snapshot_themed_ocean_line_attributes_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 5.0, 3.0, 8.0, 4.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -52,7 +53,7 @@ pub fn snapshot_themed_ocean_line_attributes_test() {
 
 pub fn snapshot_area_line_emits_linear_gradient_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 5.0, 3.0, 8.0, 4.0, 9.0, 6.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -73,7 +74,7 @@ pub fn snapshot_area_line_emits_linear_gradient_test() {
 
 pub fn snapshot_minimal_bar_attributes_test() {
   let svg =
-    sparklinekit.bar_svg(
+    render.bar_svg(
       [3.0, 7.0, 2.0, 9.0, 5.0],
       sparklinekit.default_bar_options,
     )
@@ -85,7 +86,7 @@ pub fn snapshot_minimal_bar_attributes_test() {
 
 pub fn snapshot_rounded_amber_bar_attributes_test() {
   let svg =
-    sparklinekit.bar_svg(
+    render.bar_svg(
       [3.0, 7.0, 2.0, 9.0, 5.0, 11.0, 6.0],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
@@ -100,7 +101,7 @@ pub fn snapshot_rounded_amber_bar_attributes_test() {
 
 pub fn snapshot_win_loss_bar_uses_negative_color_test() {
   let svg =
-    sparklinekit.bar_svg(
+    render.bar_svg(
       [3.0, -2.0, 5.0, -4.0, 6.0, -1.0],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
@@ -119,7 +120,7 @@ pub fn snapshot_win_loss_bar_uses_negative_color_test() {
 
 pub fn snapshot_line_png_signature_test() {
   let png =
-    sparklinekit.line_png(
+    render.line_png(
       [1.0, 5.0, 3.0, 8.0, 4.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -139,7 +140,7 @@ pub fn snapshot_line_png_signature_test() {
 
 pub fn snapshot_bar_png_signature_test() {
   let png =
-    sparklinekit.bar_png(
+    render.bar_png(
       [3.0, 7.0, 2.0, 9.0, 5.0, 11.0, 6.0],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
@@ -156,7 +157,7 @@ pub fn snapshot_bar_png_signature_test() {
 
 pub fn snapshot_line_stability_test() {
   let make = fn() {
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 5.0, 22.0, 13.0, 5.0, 2.0, 7.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -176,7 +177,7 @@ pub fn snapshot_line_stability_test() {
 
 pub fn snapshot_bar_stability_test() {
   let make = fn() {
-    sparklinekit.bar_svg(
+    render.bar_svg(
       [3.0, -2.0, 5.0, -4.0, 6.0, -1.0],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
@@ -194,7 +195,7 @@ pub fn snapshot_bar_stability_test() {
 
 pub fn snapshot_png_stability_test() {
   let make = fn() {
-    sparklinekit.line_png(
+    render.line_png(
       [1.0, 5.0, 3.0, 8.0, 4.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,

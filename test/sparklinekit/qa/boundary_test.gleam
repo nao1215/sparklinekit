@@ -11,6 +11,7 @@ import gleam/int
 import gleam/list
 import gleam/string
 import gleeunit/should
+import render
 import sparklinekit
 
 // --- Unicode renderer --------------------------------------------------
@@ -85,19 +86,19 @@ pub fn unicode_very_small_finite_floats_do_not_crash_test() {
 // --- Line renderer (SVG) ----------------------------------------------
 
 pub fn line_empty_svg_has_no_path_test() {
-  let svg = sparklinekit.line_svg([], sparklinekit.default_line_options)
+  let svg = render.line_svg([], sparklinekit.default_line_options)
   string.starts_with(svg, "<svg") |> should.be_true
   string.ends_with(svg, "</svg>") |> should.be_true
   string.contains(svg, "<path") |> should.be_false
 }
 
 pub fn line_single_value_svg_has_path_test() {
-  let svg = sparklinekit.line_svg([5.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([5.0], sparklinekit.default_line_options)
   string.contains(svg, "<path") |> should.be_true
 }
 
 pub fn line_two_values_svg_is_well_formed_test() {
-  let svg = sparklinekit.line_svg([1.0, 9.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 9.0], sparklinekit.default_line_options)
   string.starts_with(svg, "<svg") |> should.be_true
   string.ends_with(svg, "</svg>") |> should.be_true
   string.contains(svg, "<path") |> should.be_true
@@ -107,7 +108,7 @@ pub fn line_all_equal_values_render_at_midpoint_test() {
   // The path data should encode a horizontal segment at the canvas
   // midpoint; we just check it's well-formed and contains coordinates.
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [5.0, 5.0, 5.0, 5.0, 5.0],
       sparklinekit.default_line_options,
     )
@@ -117,7 +118,7 @@ pub fn line_all_equal_values_render_at_midpoint_test() {
 pub fn line_size_zero_normalises_to_one_test() {
   // The package docs claim non-positive sizes are normalised to 1.
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -132,7 +133,7 @@ pub fn line_size_zero_normalises_to_one_test() {
 
 pub fn line_negative_size_normalises_to_one_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -146,7 +147,7 @@ pub fn line_negative_size_normalises_to_one_test() {
 pub fn line_negative_stroke_width_falls_back_test() {
   // Docs: non-positive stroke width falls back to a hairline of 0.5.
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -159,7 +160,7 @@ pub fn line_negative_stroke_width_falls_back_test() {
 pub fn line_smoothing_above_max_clamps_test() {
   // Docs: smoothing outside [0.0, 0.5] is clamped to that range.
   let svg_a =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 5.0, 3.0, 8.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -167,7 +168,7 @@ pub fn line_smoothing_above_max_clamps_test() {
       ),
     )
   let svg_b =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 5.0, 3.0, 8.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -179,7 +180,7 @@ pub fn line_smoothing_above_max_clamps_test() {
 
 pub fn line_smoothing_below_min_clamps_test() {
   let svg_a =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 5.0, 3.0, 8.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -187,7 +188,7 @@ pub fn line_smoothing_below_min_clamps_test() {
       ),
     )
   let svg_b =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 5.0, 3.0, 8.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -199,7 +200,7 @@ pub fn line_smoothing_below_min_clamps_test() {
 
 pub fn line_very_large_input_does_not_crash_test() {
   let xs = list_range(1, 500) |> list.map(int.to_float)
-  let svg = sparklinekit.line_svg(xs, sparklinekit.default_line_options)
+  let svg = render.line_svg(xs, sparklinekit.default_line_options)
   string.starts_with(svg, "<svg") |> should.be_true
 }
 
@@ -222,33 +223,33 @@ fn do_list_range(current: Int, lo: Int, acc: List(Int)) -> List(Int) {
 // --- Bar renderer (SVG) -----------------------------------------------
 
 pub fn bar_empty_svg_has_no_rect_test() {
-  let svg = sparklinekit.bar_svg([], sparklinekit.default_bar_options)
+  let svg = render.bar_svg([], sparklinekit.default_bar_options)
   string.starts_with(svg, "<svg") |> should.be_true
   string.ends_with(svg, "</svg>") |> should.be_true
   string.contains(svg, "<rect") |> should.be_false
 }
 
 pub fn bar_single_value_renders_half_height_test() {
-  let svg = sparklinekit.bar_svg([5.0], sparklinekit.default_bar_options)
+  let svg = render.bar_svg([5.0], sparklinekit.default_bar_options)
   string.contains(svg, "<rect") |> should.be_true
 }
 
 pub fn bar_all_equal_values_render_half_height_test() {
   let svg =
-    sparklinekit.bar_svg([5.0, 5.0, 5.0], sparklinekit.default_bar_options)
+    render.bar_svg([5.0, 5.0, 5.0], sparklinekit.default_bar_options)
   string.contains(svg, "<rect") |> should.be_true
 }
 
 pub fn bar_all_zero_values_do_not_crash_test() {
   let svg =
-    sparklinekit.bar_svg([0.0, 0.0, 0.0], sparklinekit.default_bar_options)
+    render.bar_svg([0.0, 0.0, 0.0], sparklinekit.default_bar_options)
   string.starts_with(svg, "<svg") |> should.be_true
   string.ends_with(svg, "</svg>") |> should.be_true
 }
 
 pub fn bar_mixed_sign_uses_zero_baseline_test() {
   let svg =
-    sparklinekit.bar_svg(
+    render.bar_svg(
       [3.0, -2.0, 5.0, -4.0],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
@@ -264,7 +265,7 @@ pub fn bar_mixed_sign_uses_zero_baseline_test() {
 
 pub fn bar_size_zero_normalises_to_one_test() {
   let svg =
-    sparklinekit.bar_svg(
+    render.bar_svg(
       [1.0, 2.0],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
@@ -278,12 +279,12 @@ pub fn bar_size_zero_normalises_to_one_test() {
 pub fn bar_negative_bar_gap_clamps_to_zero_test() {
   // Docs: a negative gap is treated as 0.
   let svg_a =
-    sparklinekit.bar_svg(
+    render.bar_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.BarOptions(..sparklinekit.default_bar_options, gap: 0.0),
     )
   let svg_b =
-    sparklinekit.bar_svg(
+    render.bar_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.BarOptions(..sparklinekit.default_bar_options, gap: -5.0),
     )
@@ -294,20 +295,20 @@ pub fn bar_negative_bar_gap_clamps_to_zero_test() {
 
 pub fn line_png_empty_returns_signature_test() {
   // The PNG signature must always lead the byte stream.
-  let _png = sparklinekit.line_png([], sparklinekit.default_line_options)
+  let _png = render.line_png([], sparklinekit.default_line_options)
   // We do not assert on contents; this test exists to confirm that
   // calling `to_png` on an empty input does not panic.
   Nil
 }
 
 pub fn bar_png_empty_returns_signature_test() {
-  let _png = sparklinekit.bar_png([], sparklinekit.default_bar_options)
+  let _png = render.bar_png([], sparklinekit.default_bar_options)
   Nil
 }
 
 pub fn line_png_single_value_does_not_crash_test() {
   let _png =
-    sparklinekit.line_png(
+    render.line_png(
       [7.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -319,7 +320,7 @@ pub fn line_png_single_value_does_not_crash_test() {
 
 pub fn bar_png_single_value_does_not_crash_test() {
   let _png =
-    sparklinekit.bar_png(
+    render.bar_png(
       [7.0],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
