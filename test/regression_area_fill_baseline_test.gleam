@@ -11,6 +11,7 @@
 
 import gleam/string
 import gleeunit/should
+import render
 import sparklinekit
 
 // --- Mixed-sign data must NOT close at the viewBox bottom.
@@ -28,7 +29,7 @@ import sparklinekit
 
 pub fn area_fill_mixed_sign_uses_zero_baseline_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [3.0, -2.0, 1.0, -4.0, 2.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -56,7 +57,7 @@ pub fn area_fill_mixed_sign_uses_zero_baseline_test() {
 
 pub fn area_fill_all_positive_keeps_bottom_baseline_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0, 4.0, 5.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -80,7 +81,7 @@ pub fn area_fill_all_positive_keeps_bottom_baseline_test() {
 
 pub fn area_fill_all_negative_uses_top_baseline_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [-1.0, -2.0, -3.0, -4.0, -5.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -112,7 +113,7 @@ pub fn area_fill_all_negative_uses_top_baseline_test() {
 
 pub fn area_fill_mixed_sign_close_coordinate_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [3.0, -2.0, 1.0, -4.0, 2.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -134,7 +135,7 @@ pub fn area_fill_mixed_sign_close_coordinate_test() {
 
 pub fn area_fill_mixed_sign_through_zero_still_closes_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 0.0, -1.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,

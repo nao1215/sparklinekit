@@ -8,6 +8,47 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ## [Unreleased]
 
+### Breaking
+
+`line_svg`, `line_png`, `bar_svg` and `bar_png` now check every colour before drawing and return a `Result`. Before, SVG output wrote any colour string as given while PNG output drew a colour it could not read black, transparent or as a tint of the line, so one theme could mean two different charts.
+
+- The four chart renderers return `Result(String, InvalidColor)` or `Result(BitArray, InvalidColor)`. `blocks` is unchanged.
+- A colour is `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `none` or `currentColor`, with the keywords in any case. Anything else in the theme or in `spot_color`, such as `"red"`, `"rgb(0, 0, 0)"` or `""`, gives `Error(InvalidColor(field:, value:))`, where `field` is `"foreground"`, `"background"`, `"area"`, `"negative"` or `"spot_color"`. All four theme colours are checked, including one the chart does not draw.
+- An empty background or area colour is rejected. Use `"none"` for no background and `None` for the default area.
+- `none` draws nothing in both formats, so a foreground of `none` draws no line, no dot, no default area and no bars at or above zero, and a negative of `none` draws no bars below zero.
+- `currentColor` is drawn black in PNG output, which has no surrounding text colour, wherever it is used.
+- Since every colour that reaches the SVG text has been checked, colours are no longer escaped.
+- SVG output writes a colour with alpha (`#rgba`, `#rrggbbaa`, and the default area tint) as `#rrggbb` with a `fill-opacity`, `stroke-opacity` or `stop-opacity` attribute, because SVG 1.1 renderers do not read the alpha forms. Hex colours without alpha are still written as given.
+
+Before:
+
+```gleam
+let svg = sparklinekit.line_svg(values, options)
+```
+
+After:
+
+```gleam
+case sparklinekit.line_svg(values, options) {
+  Ok(svg) -> svg
+  Error(sparklinekit.InvalidColor(field:, value:)) -> panic as { field <> ": " <> value }
+}
+```
+
+### Fixed
+
+- The gradient area of a series with values on both sides of zero faded from the top of the chart to the bottom in SVG, so the part below zero was faintest at the line and strongest at zero. Each side now fades towards zero, in SVG and PNG.
+- PNG output shaded the gradient area per column, from the line down to the baseline, while SVG shades it by height over the whole area. PNG output now shades it by height too, so both formats draw the same opacity at the same height.
+- A gradient area under a `currentColor` line, or with an area colour of `currentColor`, was drawn flat in SVG and as a black gradient in PNG. SVG output now draws it as a gradient of `currentColor` with `stop-opacity`.
+- Values beyond 1e300 were clamped to 1e300 before scaling, so two different large values, such as `1.0e308` and `1.7e308`, were drawn as a constant series. They are now scaled without overflow up to the largest Float.
+- On JavaScript, NaN compared as the largest value and was drawn at the top. NaN is now drawn as `0.0`, and Infinity as the largest Float, in every renderer.
+- Each bar kept its gap on its right, so the chart had no margin on the left and a full gap on the right, and a reversed series was not drawn as its mirror image. Each bar is now centred in its share of the width, with half the gap at each edge.
+
+### Documentation
+
+- The 0.6.0 notes name a single package that had to follow that release. In general, any code that imports `sparklinekit/line`, `sparklinekit/bar`, `sparklinekit/theme` or `sparklinekit/unicode` has to be rewritten against the `sparklinekit` module when it moves to 0.6.0 or later, as the 0.6.0 Breaking section describes.
+- README describes the accepted colours, and the README images are drawn again with the new gradient and bar layout.
+
 ## [0.6.0] - 2026-11-23
 
 ### Breaking

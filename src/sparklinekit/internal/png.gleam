@@ -23,7 +23,7 @@ const adler32_modulus = 65_521
 ///
 /// Pixels are written verbatim; alpha is preserved. The caller owns
 /// the background — if you want a transparent canvas you fill the
-/// grid with `color.transparent`; if you want an opaque background
+/// grid with a transparent colour; if you want an opaque background
 /// you blend it before calling here.
 pub fn encode(
   pixels: List(List(Rgba)),

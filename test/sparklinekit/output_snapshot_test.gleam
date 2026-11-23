@@ -12,8 +12,10 @@ import birdie
 import gleam/bit_array
 import gleam/int
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
 import gleeunit/should
+import render
 import sparklinekit
 
 const series = [3.0, 7.0, 1.0, 9.0, 4.0, 4.0, 8.0, 2.0]
@@ -55,6 +57,24 @@ fn signed_line() -> sparklinekit.LineOptions {
   )
 }
 
+// Big enough, with a thin line, for the area on both sides of zero to show:
+// the SVG gradient and the PNG pixels fade towards zero from both ends.
+fn mixed_line() -> sparklinekit.LineOptions {
+  sparklinekit.LineOptions(
+    ..sparklinekit.default_line_options,
+    width: 48,
+    height: 24,
+    theme: sparklinekit.Theme(
+      foreground: "#336699",
+      background: "#ffffff",
+      area: Some("#336699cc"),
+      negative: "#000000",
+    ),
+    stroke_width: 1.0,
+    area: sparklinekit.GradientArea,
+  )
+}
+
 fn plain_bar() -> sparklinekit.BarOptions {
   sparklinekit.BarOptions(
     ..sparklinekit.default_bar_options,
@@ -74,45 +94,50 @@ const signed_bar =
   )
 
 pub fn line_svg_snapshots_test() -> Nil {
-  sparklinekit.line_svg(series, plain_line())
+  render.line_svg(series, plain_line())
   |> birdie.snap(title: "line svg, plain")
-  sparklinekit.line_svg(series, styled_line())
+  render.line_svg(series, styled_line())
   |> birdie.snap(title: "line svg, styled")
-  sparklinekit.line_svg(signed, signed_line())
+  render.line_svg(signed, signed_line())
   |> birdie.snap(title: "line svg, signed area")
+  render.line_svg(signed, mixed_line())
+  |> birdie.snap(title: "line svg, mixed gradient")
 }
 
 pub fn bar_svg_snapshots_test() -> Nil {
-  sparklinekit.bar_svg(series, plain_bar())
+  render.bar_svg(series, plain_bar())
   |> birdie.snap(title: "bar svg, plain")
-  sparklinekit.bar_svg(signed, signed_bar)
+  render.bar_svg(signed, signed_bar)
   |> birdie.snap(title: "bar svg, signed rounded")
 }
 
 pub fn line_png_snapshots_test() -> Nil {
-  sparklinekit.line_png(series, plain_line())
+  render.line_png(series, plain_line())
   |> pixels
   |> birdie.snap(title: "line png, plain")
-  sparklinekit.line_png(series, styled_line())
+  render.line_png(series, styled_line())
   |> pixels
   |> birdie.snap(title: "line png, styled")
-  sparklinekit.line_png(signed, signed_line())
+  render.line_png(signed, signed_line())
   |> pixels
   |> birdie.snap(title: "line png, signed area")
+  render.line_png(signed, mixed_line())
+  |> pixels
+  |> birdie.snap(title: "line png, mixed gradient")
 }
 
 pub fn bar_png_snapshots_test() -> Nil {
-  sparklinekit.bar_png(series, plain_bar())
+  render.bar_png(series, plain_bar())
   |> pixels
   |> birdie.snap(title: "bar png, plain")
-  sparklinekit.bar_png(signed, signed_bar)
+  render.bar_png(signed, signed_bar)
   |> pixels
   |> birdie.snap(title: "bar png, signed rounded")
 }
 
 // --- independent PNG reader ---------------------------------------------
 
-fn pixels(png: BitArray) -> String {
+pub fn pixels(png: BitArray) -> String {
   let assert <<0x89, "PNG":utf8, 0x0D, 0x0A, 0x1A, 0x0A, rest:bytes>> = png
   let chunks = read_chunks(rest, [])
   let assert [#("IHDR", ihdr), ..] = chunks

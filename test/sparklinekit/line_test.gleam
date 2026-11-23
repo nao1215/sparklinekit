@@ -1,10 +1,14 @@
+import gleam/int
+import gleam/list
 import gleam/option
 import gleam/string
 import gleeunit/should
+import render
 import sparklinekit
+import sparklinekit/output_snapshot_test
 
 pub fn empty_input_produces_svg_without_path_test() {
-  let svg = sparklinekit.line_svg([], sparklinekit.default_line_options)
+  let svg = render.line_svg([], sparklinekit.default_line_options)
   svg
   |> string.contains("<svg")
   |> should.be_true
@@ -15,8 +19,7 @@ pub fn empty_input_produces_svg_without_path_test() {
 }
 
 pub fn default_dimensions_are_240_by_60_test() {
-  let svg =
-    sparklinekit.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   svg
   |> string.contains("viewBox=\"0 0 240 60\"")
   |> should.be_true
@@ -24,7 +27,7 @@ pub fn default_dimensions_are_240_by_60_test() {
 
 pub fn size_is_reflected_in_viewbox_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -38,8 +41,7 @@ pub fn size_is_reflected_in_viewbox_test() {
 }
 
 pub fn default_stroke_is_currentcolor_test() {
-  let svg =
-    sparklinekit.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   svg
   |> string.contains("stroke=\"currentColor\"")
   |> should.be_true
@@ -47,24 +49,24 @@ pub fn default_stroke_is_currentcolor_test() {
 
 pub fn color_sets_stroke_attribute_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
         theme: sparklinekit.Theme(
           ..sparklinekit.default_theme,
-          foreground: "red",
+          foreground: "#ff0000",
         ),
       ),
     )
   svg
-  |> string.contains("stroke=\"red\"")
+  |> string.contains("stroke=\"#ff0000\"")
   |> should.be_true
 }
 
 pub fn stroke_width_sets_stroke_width_attribute_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -78,25 +80,21 @@ pub fn stroke_width_sets_stroke_width_attribute_test() {
 
 pub fn output_includes_path_element_test() {
   let svg =
-    sparklinekit.line_svg(
-      [1.0, 3.0, 2.0, 5.0],
-      sparklinekit.default_line_options,
-    )
+    render.line_svg([1.0, 3.0, 2.0, 5.0], sparklinekit.default_line_options)
   svg
   |> string.contains("<path")
   |> should.be_true
 }
 
 pub fn output_uses_preserve_aspect_ratio_none_test() {
-  let svg = sparklinekit.line_svg([1.0, 2.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0], sparklinekit.default_line_options)
   svg
   |> string.contains("preserveAspectRatio=\"none\"")
   |> should.be_true
 }
 
 pub fn output_opens_and_closes_svg_test() {
-  let svg =
-    sparklinekit.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   string.starts_with(svg, "<svg")
   |> should.be_true
 
@@ -105,7 +103,7 @@ pub fn output_opens_and_closes_svg_test() {
 }
 
 pub fn single_value_draws_horizontal_segment_at_midpoint_test() {
-  let svg = sparklinekit.line_svg([3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([3.0], sparklinekit.default_line_options)
   // Default height=60 → midpoint y=30.0; the segment starts inside
   // the padded edge so we just check the midpoint coordinate.
   svg
@@ -114,78 +112,16 @@ pub fn single_value_draws_horizontal_segment_at_midpoint_test() {
 }
 
 pub fn all_equal_values_draw_at_midpoint_test() {
-  let svg =
-    sparklinekit.line_svg([5.0, 5.0, 5.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([5.0, 5.0, 5.0], sparklinekit.default_line_options)
   // All points share y=30.0 (midpoint of default height 60).
   svg
   |> string.contains("30.0")
   |> should.be_true
 }
 
-pub fn quote_in_color_is_escaped_test() {
-  let svg =
-    sparklinekit.line_svg(
-      [1.0, 2.0],
-      sparklinekit.LineOptions(
-        ..sparklinekit.default_line_options,
-        theme: sparklinekit.Theme(
-          ..sparklinekit.default_theme,
-          foreground: "\"><script>",
-        ),
-      ),
-    )
-  svg
-  |> string.contains("<script>")
-  |> should.be_false
-}
-
-pub fn area_explicit_color_is_escaped_when_gradient_off_test() {
-  // The non-gradient area branch must escape the user-supplied fill
-  // colour just like `stroke_svg` and `background_rect` do —
-  // otherwise a colour string containing `"` or `<script>` lands in
-  // the SVG unescaped.
-  let svg =
-    sparklinekit.line_svg(
-      [1.0, 2.0, 3.0],
-      sparklinekit.LineOptions(
-        ..sparklinekit.default_line_options,
-        theme: sparklinekit.Theme(
-          ..sparklinekit.default_theme,
-          area: option.Some("\"><script>"),
-        ),
-        area: sparklinekit.SolidArea,
-      ),
-    )
-  svg
-  |> string.contains("<script>")
-  |> should.be_false
-}
-
-pub fn area_auto_color_is_escaped_when_stroke_is_non_hex_test() {
-  // When the stroke colour is non-parseable as a hex (e.g. a CSS
-  // keyword) and the gradient layer is disabled, the AreaAuto branch
-  // falls back to echoing the raw stroke colour into the area fill.
-  // That fallback must escape the value.
-  let svg =
-    sparklinekit.line_svg(
-      [1.0, 2.0, 3.0],
-      sparklinekit.LineOptions(
-        ..sparklinekit.default_line_options,
-        theme: sparklinekit.Theme(
-          ..sparklinekit.default_theme,
-          foreground: "\"><script>",
-        ),
-        area: sparklinekit.SolidArea,
-      ),
-    )
-  svg
-  |> string.contains("<script>")
-  |> should.be_false
-}
-
 pub fn non_positive_size_is_clamped_to_one_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -200,7 +136,7 @@ pub fn non_positive_size_is_clamped_to_one_test() {
 
 pub fn theme_overrides_stroke_to_theme_foreground_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -214,7 +150,7 @@ pub fn theme_overrides_stroke_to_theme_foreground_test() {
 
 pub fn theme_paints_background_rectangle_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -227,8 +163,7 @@ pub fn theme_paints_background_rectangle_test() {
 }
 
 pub fn default_theme_omits_background_rectangle_test() {
-  let svg =
-    sparklinekit.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   svg
   |> string.contains("<rect")
   |> should.be_false
@@ -236,7 +171,7 @@ pub fn default_theme_omits_background_rectangle_test() {
 
 pub fn area_fill_adds_filled_path_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -250,8 +185,7 @@ pub fn area_fill_adds_filled_path_test() {
 }
 
 pub fn area_fill_off_by_default_test() {
-  let svg =
-    sparklinekit.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   svg
   |> string.contains("<linearGradient")
   |> should.be_false
@@ -259,7 +193,7 @@ pub fn area_fill_off_by_default_test() {
 
 pub fn area_color_uses_explicit_fill_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -277,7 +211,7 @@ pub fn area_color_uses_explicit_fill_test() {
 
 pub fn smoothing_emits_cubic_bezier_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0, 4.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -291,10 +225,7 @@ pub fn smoothing_emits_cubic_bezier_test() {
 
 pub fn no_smoothing_emits_linear_segments_test() {
   let svg =
-    sparklinekit.line_svg(
-      [1.0, 2.0, 3.0, 4.0],
-      sparklinekit.default_line_options,
-    )
+    render.line_svg([1.0, 2.0, 3.0, 4.0], sparklinekit.default_line_options)
   svg
   |> string.contains(" C ")
   |> should.be_false
@@ -302,7 +233,7 @@ pub fn no_smoothing_emits_linear_segments_test() {
 
 pub fn spot_adds_end_circle_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -315,8 +246,7 @@ pub fn spot_adds_end_circle_test() {
 }
 
 pub fn spot_off_by_default_test() {
-  let svg =
-    sparklinekit.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   svg
   |> string.contains("<circle")
   |> should.be_false
@@ -324,7 +254,7 @@ pub fn spot_off_by_default_test() {
 
 pub fn background_color_renders_rect_test() {
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -345,7 +275,7 @@ pub fn svg_includes_pixel_width_and_height_attributes_test() {
   // CSS-sized container. The pixel-width/height attributes mirror
   // the requested size so standalone embeds size correctly.
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -369,7 +299,7 @@ pub fn gradient_ids_differ_when_themes_differ_test() {
   // and the themes silently collapse to whichever was rendered first.
   let values = [1.0, 2.0, 3.0]
   let svg_ocean =
-    sparklinekit.line_svg(
+    render.line_svg(
       values,
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -378,7 +308,7 @@ pub fn gradient_ids_differ_when_themes_differ_test() {
       ),
     )
   let svg_sunset =
-    sparklinekit.line_svg(
+    render.line_svg(
       values,
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -397,7 +327,7 @@ pub fn path_coordinates_round_to_two_decimals_test() {
   // coordinates to two decimals — far below SVG sub-pixel precision
   // but enough to keep the output readable and ~30% smaller.
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0, 8.0, 4.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -418,7 +348,7 @@ pub fn tiny_canvas_keeps_coordinates_inside_viewbox_test() {
   // The fix caps the inset to half the smaller side so all emitted
   // path coordinates stay inside [0, max].
   let svg =
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -437,7 +367,7 @@ pub fn gradient_ids_match_when_charts_are_identical_test() {
   // correct outcome, so the ids should match.
   let values = [1.0, 2.0, 3.0]
   let svg_a =
-    sparklinekit.line_svg(
+    render.line_svg(
       values,
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -446,7 +376,7 @@ pub fn gradient_ids_match_when_charts_are_identical_test() {
       ),
     )
   let svg_b =
-    sparklinekit.line_svg(
+    render.line_svg(
       values,
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -478,8 +408,11 @@ pub fn solid_area_uses_theme_area_colour_test() {
       theme: sparklinekit.ocean,
       area: sparklinekit.SolidArea,
     )
-  let svg = sparklinekit.line_svg([1.0, 5.0, 3.0], options)
-  assert string.contains(svg, "<path fill=\"#2563EB33\" stroke=\"none\"")
+  let svg = render.line_svg([1.0, 5.0, 3.0], options)
+  assert string.contains(
+    svg,
+    "<path fill=\"#2563eb\" fill-opacity=\"0.2\" stroke=\"none\"",
+  )
 }
 
 // The dot kept the colour of the theme it was set with, so a dot on a
@@ -491,7 +424,7 @@ pub fn spot_follows_the_line_colour_test() {
       theme: sparklinekit.Theme(..sparklinekit.ocean, foreground: "#ff0000"),
       spot_radius: 2.0,
     )
-  let svg = sparklinekit.line_svg([1.0, 5.0, 3.0], options)
+  let svg = render.line_svg([1.0, 5.0, 3.0], options)
   assert string.contains(svg, "r=\"2.0\" fill=\"#ff0000\"")
 }
 
@@ -502,7 +435,7 @@ pub fn spot_color_overrides_the_line_colour_test() {
       spot_radius: 2.0,
       spot_color: option.Some("#00ff00"),
     )
-  let svg = sparklinekit.line_svg([1.0, 5.0, 3.0], options)
+  let svg = render.line_svg([1.0, 5.0, 3.0], options)
   assert string.contains(svg, "r=\"2.0\" fill=\"#00ff00\"")
 }
 
@@ -515,10 +448,10 @@ pub fn gradient_fades_away_from_a_negative_line_test() {
       theme: sparklinekit.ocean,
       area: sparklinekit.GradientArea,
     )
-  let below = sparklinekit.line_svg([-1.0, -5.0, -3.0], options)
+  let below = render.line_svg([-1.0, -5.0, -3.0], options)
   assert string.contains(below, "x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\"")
   assert string.contains(below, "-up\"")
-  let above = sparklinekit.line_svg([1.0, 5.0, 3.0], options)
+  let above = render.line_svg([1.0, 5.0, 3.0], options)
   assert string.contains(above, "x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"")
 }
 
@@ -530,20 +463,91 @@ pub fn single_negative_value_fills_up_to_the_top_test() {
       ..sparklinekit.default_line_options,
       area: sparklinekit.SolidArea,
     )
-  let one = sparklinekit.line_svg([-5.0], options)
-  let two = sparklinekit.line_svg([-5.0, -5.0], options)
+  let one = render.line_svg([-5.0], options)
+  let two = render.line_svg([-5.0, -5.0], options)
   assert string.contains(one, "L 239.0 0.0 L 1.0 0.0 Z")
   assert one == two
 }
 
-// `Some("")` wrote `fill=""` into the SVG, which browsers draw black.
-pub fn empty_area_colour_uses_the_foreground_tint_test() {
+fn mixed_options() -> sparklinekit.LineOptions {
+  sparklinekit.LineOptions(
+    ..sparklinekit.default_line_options,
+    theme: sparklinekit.ocean,
+    area: sparklinekit.GradientArea,
+  )
+}
+
+// With values on both sides of zero, the SVG gradient ran from the top to
+// the bottom of the whole area, so the part below zero was faint at the
+// line and strongest at zero. Each side now fades towards zero.
+pub fn mixed_gradient_fades_towards_zero_on_both_sides_test() {
+  // 240 by 60: the line spans y 1 to 59 and zero is at y 30, half way.
+  let svg = render.line_svg([-1.0, 1.0], mixed_options())
+  assert string.contains(
+    svg,
+    "<stop offset=\"0%\" stop-color=\"#2563eb\" stop-opacity=\"0.2\"/><stop offset=\"50.0%\" stop-color=\"#2563eb\" stop-opacity=\"0\"/><stop offset=\"100%\" stop-color=\"#2563eb\" stop-opacity=\"0.2\"/>",
+  )
+}
+
+pub fn mixed_gradient_stop_follows_the_level_of_zero_test() {
+  // Zero is a quarter of the way up from the lowest value.
+  let svg = render.line_svg([-1.0, 3.0], mixed_options())
+  assert string.contains(
+    svg,
+    "<stop offset=\"75.0%\" stop-color=\"#2563eb\" stop-opacity=\"0\"/>",
+  )
+}
+
+pub fn mixed_gradients_with_different_zero_levels_get_different_ids_test() {
+  let a = extract_gradient_id(render.line_svg([-1.0, 1.0], mixed_options()))
+  let b = extract_gradient_id(render.line_svg([-1.0, 3.0], mixed_options()))
+  assert a != ""
+  assert a != b
+}
+
+// PNG output shades the area by height alone, as the SVG gradient does:
+// every area pixel in a row has the same opacity, whatever the height of
+// the line in its column. It used to shade each column from the line to
+// the baseline.
+pub fn png_gradient_depends_on_height_only_test() {
   let options =
     sparklinekit.LineOptions(
       ..sparklinekit.default_line_options,
-      theme: sparklinekit.Theme(..sparklinekit.ocean, area: option.Some("")),
-      area: sparklinekit.SolidArea,
+      width: 40,
+      height: 30,
+      theme: sparklinekit.Theme(
+        foreground: "#00000000",
+        background: "none",
+        area: option.Some("#ff0000"),
+        negative: "#000000",
+      ),
+      area: sparklinekit.GradientArea,
     )
-  let svg = sparklinekit.line_svg([1.0, 5.0, 3.0], options)
-  assert string.contains(svg, "<path fill=\"#2563eb38\" stroke=\"none\"")
+  let rows = alpha_rows(render.line_png([3.0, 1.0, -1.0, -3.0, 2.0], options))
+  list.each(rows, fn(row) {
+    let alphas = list.filter(row, fn(a) { a > 0 }) |> list.unique
+    assert list.length(alphas) <= 1
+  })
+  // Both sides are strongest at their far edge and fade towards zero.
+  let peaks =
+    list.map(rows, fn(row) { list.fold(row, 0, int.max) })
+    |> list.filter(fn(peak) { peak > 0 })
+  let assert [first, ..] = peaks
+  let assert Ok(last) = list.last(peaks)
+  assert first > 200
+  assert last > 200
+  let assert Ok(lowest) = list.reduce(peaks, int.min)
+  assert lowest < 20
+}
+
+fn alpha_rows(png: BitArray) -> List(List(Int)) {
+  output_snapshot_test.pixels(png)
+  |> string.split("\n")
+  |> list.map(fn(row) {
+    string.split(row, " ")
+    |> list.map(fn(pixel) {
+      let assert Ok(alpha) = int.base_parse(string.slice(pixel, 6, 2), 16)
+      alpha
+    })
+  })
 }

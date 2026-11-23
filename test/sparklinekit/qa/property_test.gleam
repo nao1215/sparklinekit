@@ -20,6 +20,7 @@ import gleam/int
 import gleam/list
 import gleam/string
 import gleeunit/should
+import render
 import sparklinekit
 
 const block_alphabet: List(String) = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
@@ -60,7 +61,7 @@ pub fn line_svg_always_wrapped_test() {
   list_range(1, 50)
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 12) + 1)
-    let svg = sparklinekit.line_svg(xs, sparklinekit.default_line_options)
+    let svg = render.line_svg(xs, sparklinekit.default_line_options)
     string.starts_with(svg, "<svg") |> should.be_true
     string.ends_with(svg, "</svg>") |> should.be_true
   })
@@ -70,7 +71,7 @@ pub fn bar_svg_always_wrapped_test() {
   list_range(1, 50)
   |> list.each(fn(seed) {
     let xs = gen_floats_signed(seed, modulo(seed, 12) + 1)
-    let svg = sparklinekit.bar_svg(xs, sparklinekit.default_bar_options)
+    let svg = render.bar_svg(xs, sparklinekit.default_bar_options)
     string.starts_with(svg, "<svg") |> should.be_true
     string.ends_with(svg, "</svg>") |> should.be_true
   })
@@ -81,7 +82,7 @@ pub fn line_svg_carries_viewbox_test() {
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 8) + 1)
     let svg =
-      sparklinekit.line_svg(
+      render.line_svg(
         xs,
         sparklinekit.LineOptions(
           ..sparklinekit.default_line_options,
@@ -98,7 +99,7 @@ pub fn bar_svg_carries_viewbox_test() {
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 8) + 1)
     let svg =
-      sparklinekit.bar_svg(
+      render.bar_svg(
         xs,
         sparklinekit.BarOptions(
           ..sparklinekit.default_bar_options,
@@ -118,7 +119,7 @@ pub fn line_png_starts_signature_property_test() {
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 8) + 1)
     let png =
-      sparklinekit.line_png(
+      render.line_png(
         xs,
         sparklinekit.LineOptions(
           ..sparklinekit.default_line_options,
@@ -138,7 +139,7 @@ pub fn bar_png_starts_signature_property_test() {
   |> list.each(fn(seed) {
     let xs = gen_floats_signed(seed, modulo(seed, 8) + 1)
     let png =
-      sparklinekit.bar_png(
+      render.bar_png(
         xs,
         sparklinekit.BarOptions(
           ..sparklinekit.default_bar_options,
@@ -170,7 +171,7 @@ pub fn line_themed_svg_contains_theme_foreground_test() {
   list.each(themes, fn(pair) {
     let #(t, expected_fg) = pair
     let svg =
-      sparklinekit.line_svg(
+      render.line_svg(
         [1.0, 2.0, 3.0],
         sparklinekit.LineOptions(..sparklinekit.default_line_options, theme: t),
       )
@@ -195,7 +196,7 @@ pub fn bar_themed_svg_contains_theme_foreground_test() {
   list.each(themes, fn(pair) {
     let #(t, expected_fg) = pair
     let svg =
-      sparklinekit.bar_svg(
+      render.bar_svg(
         [1.0, 2.0, 3.0],
         sparklinekit.BarOptions(..sparklinekit.default_bar_options, theme: t),
       )

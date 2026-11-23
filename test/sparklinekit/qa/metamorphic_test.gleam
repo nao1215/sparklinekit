@@ -14,6 +14,7 @@
 import gleam/list
 import gleam/string
 import gleeunit/should
+import render
 import sparklinekit
 
 const sample_values: List(Float) = [1.0, 5.0, 22.0, 13.0, 5.0, 2.0, 7.0]
@@ -137,7 +138,7 @@ pub fn unicode_render_is_deterministic_test() {
 
 pub fn line_to_svg_is_deterministic_test() {
   let make = fn() {
-    sparklinekit.line_svg(
+    render.line_svg(
       [1.0, 5.0, 3.0, 8.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -152,7 +153,7 @@ pub fn line_to_svg_is_deterministic_test() {
 
 pub fn bar_to_svg_is_deterministic_test() {
   let make = fn() {
-    sparklinekit.bar_svg(
+    render.bar_svg(
       [3.0, -2.0, 5.0, -4.0],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,

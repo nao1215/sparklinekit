@@ -1,13 +1,14 @@
 import gleam/bit_array
 import gleam/option
 import gleeunit/should
+import render
 import sparklinekit
 
 const png_signature: BitArray = <<137, 80, 78, 71, 13, 10, 26, 10>>
 
 pub fn line_png_starts_signature_test() {
   let bytes =
-    sparklinekit.line_png(
+    render.line_png(
       [1.0, 5.0, 3.0, 8.0, 4.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -22,7 +23,7 @@ pub fn line_png_starts_signature_test() {
 
 pub fn bar_png_starts_signature_test() {
   let bytes =
-    sparklinekit.bar_png(
+    render.bar_png(
       [3.0, 7.0, 2.0, 9.0],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
@@ -37,7 +38,7 @@ pub fn bar_png_starts_signature_test() {
 
 pub fn line_png_for_empty_input_still_returns_valid_signature_test() {
   let bytes =
-    sparklinekit.line_png(
+    render.line_png(
       [],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -53,7 +54,7 @@ pub fn line_png_for_empty_input_still_returns_valid_signature_test() {
 
 pub fn empty_input_png_has_the_configured_size_test() {
   let line_png =
-    sparklinekit.line_png(
+    render.line_png(
       [],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -62,7 +63,7 @@ pub fn empty_input_png_has_the_configured_size_test() {
       ),
     )
   let bar_png =
-    sparklinekit.bar_png(
+    render.bar_png(
       [],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
@@ -78,7 +79,7 @@ pub fn empty_input_png_is_a_blank_canvas_test() {
   // Nothing is drawn for an empty series, so the line and bar
   // renderers produce the same canvas for the same size and background.
   let line_png =
-    sparklinekit.line_png(
+    render.line_png(
       [],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -91,7 +92,7 @@ pub fn empty_input_png_is_a_blank_canvas_test() {
       ),
     )
   let bar_png =
-    sparklinekit.bar_png(
+    render.bar_png(
       [],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
@@ -117,7 +118,7 @@ fn ihdr_size(png: BitArray) -> Result(#(Int, Int), Nil) {
 
 pub fn bar_png_for_single_value_still_returns_valid_signature_test() {
   let bytes =
-    sparklinekit.bar_png(
+    render.bar_png(
       [5.0],
       sparklinekit.BarOptions(
         ..sparklinekit.default_bar_options,
@@ -133,7 +134,7 @@ pub fn bar_png_for_single_value_still_returns_valid_signature_test() {
 
 pub fn line_png_size_grows_canvas_test() {
   let small =
-    sparklinekit.line_png(
+    render.line_png(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -142,7 +143,7 @@ pub fn line_png_size_grows_canvas_test() {
       ),
     )
   let large =
-    sparklinekit.line_png(
+    render.line_png(
       [1.0, 2.0, 3.0],
       sparklinekit.LineOptions(
         ..sparklinekit.default_line_options,
@@ -165,6 +166,6 @@ pub fn area_none_draws_no_area_in_png_test() {
       area: sparklinekit.SolidArea,
     )
   let plain = sparklinekit.LineOptions(..options, area: sparklinekit.NoArea)
-  assert sparklinekit.line_png([1.0, 5.0, 3.0], options)
-    == sparklinekit.line_png([1.0, 5.0, 3.0], plain)
+  assert render.line_png([1.0, 5.0, 3.0], options)
+    == render.line_png([1.0, 5.0, 3.0], plain)
 }

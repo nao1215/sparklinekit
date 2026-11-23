@@ -34,3 +34,10 @@ pub fn coord(value: Float) -> String {
   let rounded = int.to_float(float.round(scaled)) /. 100.0
   float.to_string(rounded)
 }
+
+/// Format an opacity from 0.0 to 1.0 with up to four decimals, enough to
+/// tell apart every 8-bit alpha.
+pub fn opacity(value: Float) -> String {
+  let value = float.clamp(value, min: 0.0, max: 1.0)
+  float.to_string(int.to_float(float.round(value *. 10_000.0)) /. 10_000.0)
+}

@@ -4,11 +4,11 @@
 
 ## Examples and unit tests
 
-`test/sparklinekit/line_test.gleam`, `bar_test.gleam`, `png_test.gleam` and `unicode_test.gleam` check each renderer and option with fixed inputs, `readme_test.gleam` runs the README examples, and `doc_examples_test.gleam` checks the examples in the doc comments. Each fixed bug keeps its reproduction in `test/sparklinekit/qa/deep_test.gleam`, `deep2_test.gleam` or a `regression_*_test.gleam` file.
+`test/sparklinekit/line_test.gleam`, `bar_test.gleam`, `png_test.gleam` and `unicode_test.gleam` check each renderer and option with fixed inputs, `color_test.gleam` checks which colours are accepted and that every renderer rejects the same ones, `readme_test.gleam` runs the README examples, and `doc_examples_test.gleam` checks the examples in the doc comments. Each fixed bug keeps its reproduction in `test/sparklinekit/qa/deep_test.gleam`, `deep2_test.gleam` or a `regression_*_test.gleam` file.
 
 ## Boundary values
 
-`test/sparklinekit/qa/boundary_test.gleam` covers empty, single-value, all-equal, all-negative, mixed-sign and very large or very small series, and sizes, gaps, stroke widths and smoothing factors at and beyond their limits.
+`test/sparklinekit/qa/boundary_test.gleam` covers empty, single-value, all-equal, all-negative, mixed-sign and very large or very small series, and sizes, gaps, stroke widths and smoothing factors at and beyond their limits. `test/sparklinekit/edge_test.gleam` adds values up to the largest Float, Infinity and NaN (made through `edge_ffi.mjs` on JavaScript, the only target that can produce them), sizes of 0, 1 and below, the block level boundaries, and a PNG big enough to need several stored DEFLATE blocks.
 
 ## Generated properties
 
@@ -18,6 +18,7 @@
 
 - `test/sparklinekit/qa/metamorphic_test.gleam` checks scaling, shifting and reversing a fixed set of series.
 - `test/sparklinekit/metamon_metamorphic_test.gleam` checks the same kind of relations with metamon on random series, and on the SVG and PNG output byte for byte: scaling by a positive integer never changes a line or bar picture (with and without theme, area fill, smoothing and spot), shifting never changes a plain line, and values appended inside the observed range never redraw the Unicode blocks already drawn.
+- `test/sparklinekit/mirror_metamorphic_test.gleam` checks mirrored inputs with metamon: reversing a series mirrors a line or bar chart left to right, negating it turns a line upside down and turns bars upside down with the two colours swapped, and each PNG bar has the colour of the SVG bar at its centre.
 
 ## Differential testing
 
@@ -25,7 +26,7 @@
 
 ## Fuzzing and snapshots
 
-`test/sparklinekit/qa/fuzz_test.gleam` passes empty, very long, quoted and XML-special colour strings through every renderer and checks that the SVG stays well-formed and escaped. `test/sparklinekit/qa/snapshot_test.gleam` pins the attribute-level contract of canonical SVG and PNG output (viewBox, dimensions, theme colours, PNG header). `test/sparklinekit/output_snapshot_test.gleam` pins complete output with birdie: whole SVG documents for plain, styled and signed line and bar sparklines, and every pixel of the matching PNGs. PNG output is read back by an independent decoder in the test that recomputes each chunk CRC-32 and the zlib Adler-32 and unpacks the stored DEFLATE blocks into rows of `RRGGBBAA`. Review a changed snapshot with `gleam run -m birdie`; the accepted files live in `test/birdie_snapshots/`.
+`test/sparklinekit/qa/fuzz_test.gleam` builds colour strings from hex digits, keyword letters and XML-special characters and checks that each one is either an accepted colour or rejected with `InvalidColor`, so nothing else reaches the SVG. `test/sparklinekit/qa/snapshot_test.gleam` pins the attribute-level contract of canonical SVG and PNG output (viewBox, dimensions, theme colours, PNG header). `test/sparklinekit/output_snapshot_test.gleam` pins complete output with birdie: whole SVG documents for plain, styled and signed line and bar sparklines and for a gradient area on both sides of zero, and every pixel of the matching PNGs. PNG output is read back by an independent decoder in the test that recomputes each chunk CRC-32 and the zlib Adler-32 and unpacks the stored DEFLATE blocks into rows of `RRGGBBAA`. Review a changed snapshot with `gleam run -m birdie`; the accepted files live in `test/birdie_snapshots/`.
 
 ## Nightly runs
 

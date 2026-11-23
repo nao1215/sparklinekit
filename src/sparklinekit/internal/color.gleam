@@ -1,6 +1,6 @@
-//// Internal colour helpers — hex parsing into 8-bit RGBA tuples and
-//// the inverse `Rgba -> "#rrggbbaa"` conversion used by the PNG and
-//// SVG renderers when they synthesise tints from a base colour.
+//// Internal colour helpers: the colours the renderers accept, hex parsing
+//// into 8-bit RGBA, and the inverse `Rgba -> "#rrggbbaa"` conversion used
+//// when the renderers derive a tint from a base colour.
 ////
 //// This module is intentionally private. Anything here may change
 //// between minor versions.
@@ -11,26 +11,82 @@ import gleam/result
 import gleam/string
 
 /// Opaque 8-bit-per-channel RGBA value.
-///
-/// The renderers carry colours around as strings (so callers can pass
-/// any CSS colour into the SVG path) and only parse them to `Rgba`
-/// when actually emitting raster pixels.
 pub type Rgba {
   Rgba(r: Int, g: Int, b: Int, a: Int)
 }
 
-/// Solid black with no transparency — used as the fallback when a
-/// colour string cannot be parsed.
-pub const black: Rgba = Rgba(0, 0, 0, 255)
+/// A colour the renderers accept, already checked.
+pub type Paint {
+  /// A hex colour. `text` is written into SVG output as the caller gave
+  /// it, and `rgba` is what PNG output draws.
+  Hex(text: String, rgba: Rgba)
+  /// The CSS `currentColor`, at `opacity`. PNG output has no surrounding
+  /// colour and draws it black.
+  CurrentColor(opacity: Float)
+  /// `none`: nothing is drawn.
+  NoPaint
+}
 
-/// Fully transparent — used as the default PNG background.
-pub const transparent: Rgba = Rgba(0, 0, 0, 0)
+/// Reads `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `none` and
+/// `currentColor`. The keywords are matched without regard to ASCII case.
+pub fn parse_paint(value: String) -> Result(Paint, Nil) {
+  case string.lowercase(value) {
+    "none" -> Ok(NoPaint)
+    "currentcolor" -> Ok(CurrentColor(opacity: 1.0))
+    _ -> parse_hex(value) |> result.map(Hex(text: value, rgba: _))
+  }
+}
+
+/// The pixel colour of `paint` in PNG output.
+pub fn paint_rgba(paint: Paint) -> Rgba {
+  case paint {
+    Hex(rgba:, ..) -> rgba
+    CurrentColor(opacity:) -> with_alpha(black, factor: opacity)
+    NoPaint -> transparent
+  }
+}
+
+/// How SVG output writes `paint`: a colour without alpha, and an opacity
+/// for the `fill-opacity`, `stroke-opacity` or `stop-opacity` attribute.
+/// SVG 1.1 has no `#rgba` or `#rrggbbaa`, so those are written as
+/// `#rrggbb` and an opacity; other hex colours are written as given.
+pub fn svg_colour(paint: Paint) -> #(String, Float) {
+  case paint {
+    Hex(text:, rgba:) ->
+      case string.length(text) {
+        5 | 9 -> #(
+          string.slice(to_hex_rgba(rgba), 0, 7),
+          int.to_float(rgba.a) /. 255.0,
+        )
+        _ -> #(text, 1.0)
+      }
+    CurrentColor(opacity:) -> #("currentColor", opacity)
+    NoPaint -> #("none", 1.0)
+  }
+}
+
+/// `paint` with its opacity multiplied by `factor`.
+pub fn fade(paint: Paint, factor factor: Float) -> Paint {
+  case paint {
+    Hex(rgba:, ..) -> {
+      let rgba = with_alpha(rgba, factor:)
+      Hex(text: to_hex_rgba(rgba), rgba:)
+    }
+    CurrentColor(opacity:) ->
+      CurrentColor(opacity: float.clamp(opacity *. factor, min: 0.0, max: 1.0))
+    NoPaint -> NoPaint
+  }
+}
+
+// What `currentColor` is drawn as in PNG output.
+const black: Rgba = Rgba(0, 0, 0, 255)
+
+// What `none` is drawn as in PNG output.
+const transparent: Rgba = Rgba(0, 0, 0, 0)
 
 /// Parse a `#RGB`, `#RGBA`, `#RRGGBB`, or `#RRGGBBAA` string into an
-/// `Rgba`. Returns `Error(Nil)` for any other shape, including named
-/// colours like `currentColor` — the caller decides what to do with
-/// that (usually: substitute a theme default).
-pub fn parse_hex(value: String) -> Result(Rgba, Nil) {
+/// `Rgba`. Returns `Error(Nil)` for any other shape.
+fn parse_hex(value: String) -> Result(Rgba, Nil) {
   case string.starts_with(value, "#") {
     False -> Error(Nil)
     True -> {
@@ -43,14 +99,6 @@ pub fn parse_hex(value: String) -> Result(Rgba, Nil) {
         _ -> Error(Nil)
       }
     }
-  }
-}
-
-/// Parse `value` with `fallback` substituted when the parse fails.
-pub fn parse_or(value: String, fallback fallback: Rgba) -> Rgba {
-  case parse_hex(value) {
-    Ok(rgba) -> rgba
-    Error(_) -> fallback
   }
 }
 

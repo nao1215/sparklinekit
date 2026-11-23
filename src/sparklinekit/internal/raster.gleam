@@ -53,19 +53,6 @@ fn put(canvas: Canvas, x: Int, y: Int, colour: Rgba) -> Canvas {
   }
 }
 
-/// Fills an axis-aligned rectangle, rounding its edges to whole pixels so
-/// adjacent rectangles tile without gaps.
-pub fn fill_rect(
-  canvas: Canvas,
-  x: Float,
-  y: Float,
-  width: Float,
-  height: Float,
-  colour: Rgba,
-) -> Canvas {
-  fill_rounded_rect(canvas, x, y, width, height, 0.0, colour)
-}
-
 /// Fill a rounded-corner rectangle with `radius` user units of
 /// corner radius. The radius is clamped to half the smaller side.
 pub fn fill_rounded_rect(
@@ -210,50 +197,19 @@ fn float_sqrt(value: Float) -> Float {
   }
 }
 
-/// Fill the rectangle `(x0, y0) -> (x1, y1)` with a vertical gradient
-/// that linearly interpolates from `top_colour` to `bottom_colour`
-/// across each row.
-pub fn fill_vertical_gradient(
+/// Fills column `x` from `from` to `to` (in either order), rounded to whole
+/// pixels. Each pixel takes `colour_at` of the y of its centre.
+pub fn fill_column(
   canvas: Canvas,
-  x0: Float,
-  y0: Float,
-  x1: Float,
-  y1: Float,
-  top_colour: Rgba,
-  bottom_colour: Rgba,
+  x: Int,
+  from: Float,
+  to: Float,
+  colour_at: fn(Float) -> Rgba,
 ) -> Canvas {
-  let xa = float.round(float.min(x0, x1))
-  let xb = float.round(float.max(x0, x1))
-  let ya = float.round(float.min(y0, y1))
-  let yb = float.round(float.max(y0, y1))
-  case xa >= xb || ya >= yb {
-    True -> canvas
-    False -> {
-      let xs = range(xa, xb - 1)
-      let span_f = int.to_float(yb - ya)
-      range(ya, yb - 1)
-      |> list.fold(canvas, fn(c, y) {
-        let t = case span_f <=. 0.0 {
-          True -> 0.0
-          False -> int.to_float(y - ya) /. span_f
-        }
-        let row_colour = interpolate(top_colour, bottom_colour, t)
-        list.fold(xs, c, fn(c2, x) { put(c2, x, y, row_colour) })
-      })
-    }
-  }
-}
-
-fn interpolate(a: Rgba, b: Rgba, t: Float) -> Rgba {
-  let t_ = float.clamp(t, min: 0.0, max: 1.0)
-  let mix = fn(a_ch: Int, b_ch: Int) -> Int {
-    let af = int.to_float(a_ch)
-    let bf = int.to_float(b_ch)
-    int.clamp(float.round(af +. { bf -. af } *. t_), min: 0, max: 255)
-  }
-  let color.Rgba(ar, ag, ab, aa) = a
-  let color.Rgba(br, bg, bb, ba) = b
-  color.Rgba(r: mix(ar, br), g: mix(ag, bg), b: mix(ab, bb), a: mix(aa, ba))
+  let top = float.round(float.min(from, to))
+  let bottom = float.round(float.max(from, to))
+  use canvas, y <- list.fold(range(top, bottom - 1), canvas)
+  put(canvas, x, y, colour_at(int.to_float(y) +. 0.5))
 }
 
 /// Materialise the canvas into a row-major `List(List(Rgba))` ready
