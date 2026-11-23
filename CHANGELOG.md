@@ -8,6 +8,56 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ## [Unreleased]
 
+### Breaking
+
+The public API is now the single module `sparklinekit`. The builders and the theme are plain records, so their setters and getters are removed.
+
+- `sparklinekit/unicode`, `sparklinekit/line`, `sparklinekit/bar` and `sparklinekit/theme` are removed and their contents move into `sparklinekit`.
+- `unicode.render` is `sparklinekit.blocks`. `unicode.render_ints` is removed; pass `list.map(values, int.to_float)`.
+- The opaque `line.Builder` and `bar.Builder` are replaced by the records `LineOptions` and `BarOptions` with the constants `default_line_options` and `default_bar_options`. `line.to_svg` and `line.to_png` are `line_svg(values, options)` and `line_png(values, options)`, and `bar.to_svg` and `bar.to_png` are `bar_svg` and `bar_png`. `new`, `new_ints`, `with_values`, `with_int_values` and every `with_*` setter are removed; set the record fields instead (`with_size` is `width` and `height`, `with_spot` is `spot_radius`, `with_bar_gap` is `gap`).
+- `with_area_fill`, `with_area_color` and `with_gradient_area` are replaced by the `area` field, which is `NoArea`, `SolidArea` or `GradientArea`, and the theme's `area` colour.
+- `with_color`, `with_background_color` and `with_negative_color` are replaced by the fields of the `theme`, for example `Theme(..sparklinekit.ocean, foreground: "#22A06B")`.
+- `Theme` is a record with the fields `foreground`, `background`, `area` and `negative`, so the accessor functions are removed. `area` is an `Option(String)`; `None` uses the foreground at 22% opacity. The theme functions are constants: `theme.ocean()` is `sparklinekit.ocean`, and `theme.default()` is `sparklinekit.default_theme`.
+- `sparklinekit.package_version` is removed.
+- In PNG output, a foreground or negative colour that is not hex is drawn black. It used to fall back to the colour of the theme set before `with_color` or `with_negative_color`.
+- Options out of range (sizes below 1, negative gaps and radii, smoothing outside 0 to 0.5, very large stroke widths and dots) are still clamped, now when the chart is drawn.
+
+Before:
+
+```gleam
+import sparklinekit/line
+import sparklinekit/theme
+
+line.new([1.0, 5.0, 3.0, 8.0, 4.0])
+|> line.with_theme(theme.ocean())
+|> line.with_area_fill(True)
+|> line.with_spot(3.0)
+|> line.to_svg
+```
+
+After:
+
+```gleam
+import sparklinekit.{LineOptions}
+
+sparklinekit.line_svg(
+  [1.0, 5.0, 3.0, 8.0, 4.0],
+  LineOptions(
+    ..sparklinekit.default_line_options,
+    theme: sparklinekit.ocean,
+    area: sparklinekit.GradientArea,
+    spot_radius: 3.0,
+  ),
+)
+```
+
+tenbagger uses `sparklinekit/line` and `sparklinekit/theme` and needs to follow this change when it updates.
+
+### Fixed
+
+- A solid area (`with_gradient_area(False)`) under a themed line used a tint of the line colour in SVG and the theme's area colour in PNG. Both now use the theme's area colour.
+- The dot on the last value kept the colour of the theme it was set with, so after `with_color` it was not the colour of the line, as its documentation said. It now follows the line colour unless `spot_color` is set.
+
 ## [0.5.0] - 2026-11-19
 
 ### Changed
