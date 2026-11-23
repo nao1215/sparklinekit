@@ -47,8 +47,9 @@ pub type Theme {
     /// The background rectangle. `"none"` or `""` draws no background.
     background: String,
     /// The area under a line. `None` or `Some("")` uses the foreground at 22%
-    /// opacity. SVG output draws any other colour as given, so a colour
-    /// without its own transparency covers the line.
+    /// opacity, and `Some("none")` draws no area. SVG output draws any other
+    /// colour as given, so a colour without its own transparency is drawn
+    /// opaque under the line.
     area: Option(String),
     /// The bars below zero. Line charts ignore it.
     negative: String,
@@ -333,9 +334,9 @@ pub fn line_png(values: List(Float), options: LineOptions) -> BitArray {
   let points = line_points(values, options)
   let path = sampled_path(points, options.smoothing)
   let canvas = raster.new(options.width, options.height, background_rgba(theme))
-  let canvas = case options.area {
-    NoArea -> canvas
-    area ->
+  let canvas = case options.area, area_colour(theme) {
+    NoArea, _ | _, Some("none") -> canvas
+    area, _ ->
       fill_area(
         canvas,
         path,

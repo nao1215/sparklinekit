@@ -1,4 +1,5 @@
 import gleam/bit_array
+import gleam/option
 import gleeunit/should
 import sparklinekit
 
@@ -153,4 +154,17 @@ pub fn line_png_size_grows_canvas_test() {
     True -> Nil
     False -> should.fail()
   }
+}
+
+// `Some("none")` drew no area in SVG but a tinted one in PNG.
+pub fn area_none_draws_no_area_in_png_test() {
+  let options =
+    sparklinekit.LineOptions(
+      ..sparklinekit.default_line_options,
+      theme: sparklinekit.Theme(..sparklinekit.ocean, area: option.Some("none")),
+      area: sparklinekit.SolidArea,
+    )
+  let plain = sparklinekit.LineOptions(..options, area: sparklinekit.NoArea)
+  assert sparklinekit.line_png([1.0, 5.0, 3.0], options)
+    == sparklinekit.line_png([1.0, 5.0, 3.0], plain)
 }
