@@ -35,9 +35,9 @@ pub fn new(width: Int, height: Int, background: Rgba) -> Canvas {
   )
 }
 
-/// Blend a single pixel `colour` over whatever is currently at
-/// `(x, y)`. Out-of-bounds writes are silently dropped.
-pub fn put(canvas: Canvas, x: Int, y: Int, colour: Rgba) -> Canvas {
+// Blends `colour` over the pixel at `(x, y)`. Writes outside the canvas
+// are dropped.
+fn put(canvas: Canvas, x: Int, y: Int, colour: Rgba) -> Canvas {
   case in_bounds(canvas, x, y) {
     False -> canvas
     True -> {
@@ -53,10 +53,8 @@ pub fn put(canvas: Canvas, x: Int, y: Int, colour: Rgba) -> Canvas {
   }
 }
 
-/// Fill an axis-aligned rectangle. `width` and `height` may be
-/// fractional; the function rounds to integer pixel edges using the
-/// standard `floor(x)..ceil(x+width)` convention so adjacent
-/// rectangles tile without gaps.
+/// Fills an axis-aligned rectangle, rounding its edges to whole pixels so
+/// adjacent rectangles tile without gaps.
 pub fn fill_rect(
   canvas: Canvas,
   x: Float,
@@ -65,11 +63,7 @@ pub fn fill_rect(
   height: Float,
   colour: Rgba,
 ) -> Canvas {
-  let x0 = float.round(x)
-  let y0 = float.round(y)
-  let x1 = float.round(x +. width)
-  let y1 = float.round(y +. height)
-  fill_rect_int(canvas, x0, y0, x1, y1, colour)
+  fill_rounded_rect(canvas, x, y, width, height, 0.0, colour)
 }
 
 /// Fill a rounded-corner rectangle with `radius` user units of
@@ -251,19 +245,11 @@ pub fn fill_vertical_gradient(
 }
 
 fn interpolate(a: Rgba, b: Rgba, t: Float) -> Rgba {
-  let t_ = case t {
-    v if v <. 0.0 -> 0.0
-    v if v >. 1.0 -> 1.0
-    v -> v
-  }
+  let t_ = float.clamp(t, min: 0.0, max: 1.0)
   let mix = fn(a_ch: Int, b_ch: Int) -> Int {
     let af = int.to_float(a_ch)
     let bf = int.to_float(b_ch)
-    case float.round(af +. { bf -. af } *. t_) {
-      v if v < 0 -> 0
-      v if v > 255 -> 255
-      v -> v
-    }
+    int.clamp(float.round(af +. { bf -. af } *. t_), min: 0, max: 255)
   }
   let color.Rgba(ar, ag, ab, aa) = a
   let color.Rgba(br, bg, bb, ba) = b
@@ -290,7 +276,9 @@ pub fn to_grid(canvas: Canvas) -> List(List(Rgba)) {
   })
 }
 
-fn range(lo: Int, hi: Int) -> List(Int) {
+/// Returns the integers from `lo` to `hi`, both included, or `[]` when
+/// `lo > hi`.
+pub fn range(lo: Int, hi: Int) -> List(Int) {
   case lo > hi {
     True -> []
     False -> do_range(hi, lo, [])
@@ -327,10 +315,10 @@ fn fill_rect_int(
   y1: Int,
   colour: Rgba,
 ) -> Canvas {
-  let x_lo = max_int(0, min_int(x0, x1))
-  let x_hi = min_int(canvas.width, max_int(x0, x1))
-  let y_lo = max_int(0, min_int(y0, y1))
-  let y_hi = min_int(canvas.height, max_int(y0, y1))
+  let x_lo = int.max(0, int.min(x0, x1))
+  let x_hi = int.min(canvas.width, int.max(x0, x1))
+  let y_lo = int.max(0, int.min(y0, y1))
+  let y_hi = int.min(canvas.height, int.max(y0, y1))
   case x_hi <= x_lo || y_hi <= y_lo {
     True -> canvas
     False -> {
@@ -491,19 +479,5 @@ fn pixel_coverage(
         True -> 1.0
         False -> overlap
       }
-  }
-}
-
-fn min_int(a: Int, b: Int) -> Int {
-  case a < b {
-    True -> a
-    False -> b
-  }
-}
-
-fn max_int(a: Int, b: Int) -> Int {
-  case a > b {
-    True -> a
-    False -> b
   }
 }

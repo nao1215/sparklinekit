@@ -24,19 +24,13 @@ const coord_clamp_magnitude: Float = 1.0e6
 /// Values outside `±coord_clamp_magnitude` are clamped to that
 /// range so the renderer stays total for adversarial input.
 pub fn coord(value: Float) -> String {
-  let safe = clamp_coord(value)
+  let safe =
+    float.clamp(
+      value,
+      min: 0.0 -. coord_clamp_magnitude,
+      max: coord_clamp_magnitude,
+    )
   let scaled = safe *. 100.0
   let rounded = int.to_float(float.round(scaled)) /. 100.0
   float.to_string(rounded)
-}
-
-fn clamp_coord(value: Float) -> Float {
-  case value >. coord_clamp_magnitude {
-    True -> coord_clamp_magnitude
-    False ->
-      case value <. 0.0 -. coord_clamp_magnitude {
-        True -> 0.0 -. coord_clamp_magnitude
-        False -> value
-      }
-  }
 }

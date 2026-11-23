@@ -1,17 +1,17 @@
-//// Regression test for issue #6 — `line.with_area_fill(True)` must
+//// Regression test for issue #6: the area under a line must
 //// anchor the area to the **zero baseline** rather than always
 //// closing at the viewBox bottom edge.
 ////
 //// Pre-fix behaviour: the area path closed at `y = height` for every
 //// input, so a mixed-sign series like `[3, -2, 1, -4, 2]` was filled
 //// all the way to the canvas floor and read visually as
-//// "all-positive". The fix introduces three baseline rules — see
-//// `area_baseline_y` in `src/sparklinekit/line.gleam` — and each
-//// rule has a matching test below.
+//// "all-positive". The fix introduces three baseline rules (see
+//// `area_baseline` in `src/sparklinekit.gleam`), and each rule has a
+//// matching test below.
 
 import gleam/string
 import gleeunit/should
-import sparklinekit/line
+import sparklinekit
 
 // --- Mixed-sign data must NOT close at the viewBox bottom.
 //
@@ -28,10 +28,15 @@ import sparklinekit/line
 
 pub fn area_fill_mixed_sign_uses_zero_baseline_test() {
   let svg =
-    line.new([3.0, -2.0, 1.0, -4.0, 2.0])
-    |> line.with_area_fill(True)
-    |> line.with_size(100, 40)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [3.0, -2.0, 1.0, -4.0, 2.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 100,
+        height: 40,
+        area: sparklinekit.GradientArea,
+      ),
+    )
 
   // The pre-fix path ended with this exact suffix. The fix must
   // close the area somewhere other than the canvas floor.
@@ -51,10 +56,15 @@ pub fn area_fill_mixed_sign_uses_zero_baseline_test() {
 
 pub fn area_fill_all_positive_keeps_bottom_baseline_test() {
   let svg =
-    line.new([1.0, 2.0, 3.0, 4.0, 5.0])
-    |> line.with_area_fill(True)
-    |> line.with_size(100, 40)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0, 4.0, 5.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 100,
+        height: 40,
+        area: sparklinekit.GradientArea,
+      ),
+    )
 
   // The exact suffix from the pre-fix renderer — preserved for
   // all-non-negative data so existing visuals stay unchanged.
@@ -70,10 +80,15 @@ pub fn area_fill_all_positive_keeps_bottom_baseline_test() {
 
 pub fn area_fill_all_negative_uses_top_baseline_test() {
   let svg =
-    line.new([-1.0, -2.0, -3.0, -4.0, -5.0])
-    |> line.with_area_fill(True)
-    |> line.with_size(100, 40)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [-1.0, -2.0, -3.0, -4.0, -5.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 100,
+        height: 40,
+        area: sparklinekit.GradientArea,
+      ),
+    )
 
   // Must close at the top edge, not the bottom.
   svg
@@ -97,10 +112,15 @@ pub fn area_fill_all_negative_uses_top_baseline_test() {
 
 pub fn area_fill_mixed_sign_close_coordinate_test() {
   let svg =
-    line.new([3.0, -2.0, 1.0, -4.0, 2.0])
-    |> line.with_area_fill(True)
-    |> line.with_size(100, 40)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [3.0, -2.0, 1.0, -4.0, 2.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 100,
+        height: 40,
+        area: sparklinekit.GradientArea,
+      ),
+    )
 
   // Both close coordinates should sit at the same baseline y.
   svg
@@ -114,10 +134,15 @@ pub fn area_fill_mixed_sign_close_coordinate_test() {
 
 pub fn area_fill_mixed_sign_through_zero_still_closes_test() {
   let svg =
-    line.new([1.0, 0.0, -1.0])
-    |> line.with_area_fill(True)
-    |> line.with_size(100, 40)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 0.0, -1.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 100,
+        height: 40,
+        area: sparklinekit.GradientArea,
+      ),
+    )
 
   svg
   |> string.contains("<path")

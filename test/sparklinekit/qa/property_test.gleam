@@ -9,7 +9,7 @@
 //// The properties asserted here are the *should always hold* claims
 //// the package makes (often implicitly):
 ////
-//// - `unicode.render` length equals input length for non-empty input.
+//// - `sparklinekit.blocks` length equals input length for non-empty input.
 //// - Output uses only the eight-block vocabulary.
 //// - SVG output is always a well-formed `<svg>...</svg>` wrapper.
 //// - PNG output always starts with the 8-byte PNG signature.
@@ -20,10 +20,7 @@ import gleam/int
 import gleam/list
 import gleam/string
 import gleeunit/should
-import sparklinekit/bar
-import sparklinekit/line
-import sparklinekit/theme
-import sparklinekit/unicode
+import sparklinekit
 
 const block_alphabet: List(String) = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
 
@@ -33,7 +30,7 @@ pub fn unicode_length_property_test() {
   list_range(1, 200)
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 32) + 1)
-    let out = unicode.render(xs)
+    let out = sparklinekit.blocks(xs)
     string.length(out) |> should.equal(list.length(xs))
   })
 }
@@ -42,7 +39,7 @@ pub fn unicode_block_alphabet_property_test() {
   list_range(1, 100)
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 20) + 1)
-    let out = unicode.render(xs)
+    let out = sparklinekit.blocks(xs)
     string.to_graphemes(out)
     |> list.each(fn(g) { list.contains(block_alphabet, g) |> should.be_true })
   })
@@ -53,8 +50,7 @@ pub fn unicode_total_on_arbitrary_floats_test() {
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 40) + 1)
     // Must not panic regardless of value distribution.
-    let _ = unicode.render(xs)
-    Nil
+    assert string.length(sparklinekit.blocks(xs)) == list.length(xs)
   })
 }
 
@@ -64,7 +60,7 @@ pub fn line_svg_always_wrapped_test() {
   list_range(1, 50)
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 12) + 1)
-    let svg = line.new(xs) |> line.to_svg
+    let svg = sparklinekit.line_svg(xs, sparklinekit.default_line_options)
     string.starts_with(svg, "<svg") |> should.be_true
     string.ends_with(svg, "</svg>") |> should.be_true
   })
@@ -74,7 +70,7 @@ pub fn bar_svg_always_wrapped_test() {
   list_range(1, 50)
   |> list.each(fn(seed) {
     let xs = gen_floats_signed(seed, modulo(seed, 12) + 1)
-    let svg = bar.new(xs) |> bar.to_svg
+    let svg = sparklinekit.bar_svg(xs, sparklinekit.default_bar_options)
     string.starts_with(svg, "<svg") |> should.be_true
     string.ends_with(svg, "</svg>") |> should.be_true
   })
@@ -85,9 +81,14 @@ pub fn line_svg_carries_viewbox_test() {
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 8) + 1)
     let svg =
-      line.new(xs)
-      |> line.with_size(100 + modulo(seed, 400), 30 + modulo(seed, 80))
-      |> line.to_svg
+      sparklinekit.line_svg(
+        xs,
+        sparklinekit.LineOptions(
+          ..sparklinekit.default_line_options,
+          width: 100 + modulo(seed, 400),
+          height: 30 + modulo(seed, 80),
+        ),
+      )
     string.contains(svg, "viewBox=") |> should.be_true
   })
 }
@@ -97,24 +98,33 @@ pub fn bar_svg_carries_viewbox_test() {
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 8) + 1)
     let svg =
-      bar.new(xs)
-      |> bar.with_size(100 + modulo(seed, 400), 30 + modulo(seed, 80))
-      |> bar.to_svg
+      sparklinekit.bar_svg(
+        xs,
+        sparklinekit.BarOptions(
+          ..sparklinekit.default_bar_options,
+          width: 100 + modulo(seed, 400),
+          height: 30 + modulo(seed, 80),
+        ),
+      )
     string.contains(svg, "viewBox=") |> should.be_true
   })
 }
 
 // --- PNG signature -------------------------------------------------
 
-pub fn line_png_starts_with_signature_property_test() {
+pub fn line_png_starts_signature_property_test() {
   let signature = <<137, 80, 78, 71, 13, 10, 26, 10>>
   list_range(1, 30)
   |> list.each(fn(seed) {
     let xs = gen_floats(seed, modulo(seed, 8) + 1)
     let png =
-      line.new(xs)
-      |> line.with_theme(theme.ocean())
-      |> line.to_png
+      sparklinekit.line_png(
+        xs,
+        sparklinekit.LineOptions(
+          ..sparklinekit.default_line_options,
+          theme: sparklinekit.ocean,
+        ),
+      )
     case bit_array.slice(png, 0, 8) {
       Ok(head) -> head |> should.equal(signature)
       Error(_) -> should.fail()
@@ -122,15 +132,19 @@ pub fn line_png_starts_with_signature_property_test() {
   })
 }
 
-pub fn bar_png_starts_with_signature_property_test() {
+pub fn bar_png_starts_signature_property_test() {
   let signature = <<137, 80, 78, 71, 13, 10, 26, 10>>
   list_range(1, 30)
   |> list.each(fn(seed) {
     let xs = gen_floats_signed(seed, modulo(seed, 8) + 1)
     let png =
-      bar.new(xs)
-      |> bar.with_theme(theme.amber())
-      |> bar.to_png
+      sparklinekit.bar_png(
+        xs,
+        sparklinekit.BarOptions(
+          ..sparklinekit.default_bar_options,
+          theme: sparklinekit.amber,
+        ),
+      )
     case bit_array.slice(png, 0, 8) {
       Ok(head) -> head |> should.equal(signature)
       Error(_) -> should.fail()
@@ -142,23 +156,24 @@ pub fn bar_png_starts_with_signature_property_test() {
 
 pub fn line_themed_svg_contains_theme_foreground_test() {
   let themes = [
-    #(theme.ocean(), "#2563EB"),
-    #(theme.forest(), "#10B981"),
-    #(theme.sunset(), "#F97316"),
-    #(theme.mono(), "#0F172A"),
-    #(theme.neon(), "#22D3EE"),
-    #(theme.pastel(), "#A78BFA"),
-    #(theme.crimson(), "#DC2626"),
-    #(theme.slate(), "#475569"),
-    #(theme.amber(), "#F59E0B"),
-    #(theme.midnight(), "#F8FAFC"),
+    #(sparklinekit.ocean, "#2563EB"),
+    #(sparklinekit.forest, "#10B981"),
+    #(sparklinekit.sunset, "#F97316"),
+    #(sparklinekit.mono, "#0F172A"),
+    #(sparklinekit.neon, "#22D3EE"),
+    #(sparklinekit.pastel, "#A78BFA"),
+    #(sparklinekit.crimson, "#DC2626"),
+    #(sparklinekit.slate, "#475569"),
+    #(sparklinekit.amber, "#F59E0B"),
+    #(sparklinekit.midnight, "#F8FAFC"),
   ]
   list.each(themes, fn(pair) {
     let #(t, expected_fg) = pair
     let svg =
-      line.new([1.0, 2.0, 3.0])
-      |> line.with_theme(t)
-      |> line.to_svg
+      sparklinekit.line_svg(
+        [1.0, 2.0, 3.0],
+        sparklinekit.LineOptions(..sparklinekit.default_line_options, theme: t),
+      )
     string.contains(svg, "stroke=\"" <> expected_fg <> "\"")
     |> should.be_true
   })
@@ -166,23 +181,24 @@ pub fn line_themed_svg_contains_theme_foreground_test() {
 
 pub fn bar_themed_svg_contains_theme_foreground_test() {
   let themes = [
-    #(theme.ocean(), "#2563EB"),
-    #(theme.forest(), "#10B981"),
-    #(theme.sunset(), "#F97316"),
-    #(theme.mono(), "#0F172A"),
-    #(theme.neon(), "#22D3EE"),
-    #(theme.pastel(), "#A78BFA"),
-    #(theme.crimson(), "#DC2626"),
-    #(theme.slate(), "#475569"),
-    #(theme.amber(), "#F59E0B"),
-    #(theme.midnight(), "#F8FAFC"),
+    #(sparklinekit.ocean, "#2563EB"),
+    #(sparklinekit.forest, "#10B981"),
+    #(sparklinekit.sunset, "#F97316"),
+    #(sparklinekit.mono, "#0F172A"),
+    #(sparklinekit.neon, "#22D3EE"),
+    #(sparklinekit.pastel, "#A78BFA"),
+    #(sparklinekit.crimson, "#DC2626"),
+    #(sparklinekit.slate, "#475569"),
+    #(sparklinekit.amber, "#F59E0B"),
+    #(sparklinekit.midnight, "#F8FAFC"),
   ]
   list.each(themes, fn(pair) {
     let #(t, expected_fg) = pair
     let svg =
-      bar.new([1.0, 2.0, 3.0])
-      |> bar.with_theme(t)
-      |> bar.to_svg
+      sparklinekit.bar_svg(
+        [1.0, 2.0, 3.0],
+        sparklinekit.BarOptions(..sparklinekit.default_bar_options, theme: t),
+      )
     string.contains(svg, "fill=\"" <> expected_fg <> "\"")
     |> should.be_true
   })

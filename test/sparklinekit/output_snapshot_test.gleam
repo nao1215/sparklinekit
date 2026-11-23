@@ -14,78 +14,98 @@ import gleam/int
 import gleam/list
 import gleam/string
 import gleeunit/should
-import sparklinekit/bar
-import sparklinekit/line
-import sparklinekit/theme
+import sparklinekit
 
 const series = [3.0, 7.0, 1.0, 9.0, 4.0, 4.0, 8.0, 2.0]
 
 const signed = [-4.0, 2.0, 5.0, -1.0, 0.0, 3.0, -6.0, 1.0]
 
-fn plain_line() -> line.Builder {
-  line.new(series) |> line.with_size(24, 8)
+fn plain_line() -> sparklinekit.LineOptions {
+  sparklinekit.LineOptions(
+    ..sparklinekit.default_line_options,
+    width: 24,
+    height: 8,
+  )
 }
 
-fn styled_line() -> line.Builder {
-  line.new(series)
-  |> line.with_size(24, 8)
-  |> line.with_theme(theme.ocean())
-  |> line.with_smoothing(0.4)
-  |> line.with_area_fill(True)
-  |> line.with_gradient_area(True)
-  |> line.with_spot(2.0)
-  |> line.with_stroke_width(1.5)
+fn styled_line() -> sparklinekit.LineOptions {
+  sparklinekit.LineOptions(
+    ..sparklinekit.default_line_options,
+    width: 24,
+    height: 8,
+    theme: sparklinekit.ocean,
+    stroke_width: 1.5,
+    smoothing: 0.4,
+    area: sparklinekit.GradientArea,
+    spot_radius: 2.0,
+  )
 }
 
-fn signed_line() -> line.Builder {
-  line.new(signed)
-  |> line.with_size(24, 8)
-  |> line.with_area_fill(True)
-  |> line.with_color("#336699")
-  |> line.with_background_color("#fafafa")
+fn signed_line() -> sparklinekit.LineOptions {
+  sparklinekit.LineOptions(
+    ..sparklinekit.default_line_options,
+    width: 24,
+    height: 8,
+    theme: sparklinekit.Theme(
+      ..sparklinekit.default_theme,
+      foreground: "#336699",
+      background: "#fafafa",
+    ),
+    area: sparklinekit.GradientArea,
+  )
 }
 
-fn signed_bar() -> bar.Builder {
-  bar.new(signed)
-  |> bar.with_size(24, 8)
-  |> bar.with_theme(theme.sunset())
-  |> bar.with_bar_gap(1.0)
-  |> bar.with_corner_radius(1.0)
+fn plain_bar() -> sparklinekit.BarOptions {
+  sparklinekit.BarOptions(
+    ..sparklinekit.default_bar_options,
+    width: 24,
+    height: 8,
+    theme: sparklinekit.Theme(..sparklinekit.default_theme, negative: "#cc0000"),
+  )
 }
 
-fn plain_bar() -> bar.Builder {
-  bar.new(series)
-  |> bar.with_size(24, 8)
-  |> bar.with_negative_color("#cc0000")
-}
+const signed_bar =
+  sparklinekit.BarOptions(
+    width: 24,
+    height: 8,
+    theme: sparklinekit.sunset,
+    gap: 1.0,
+    corner_radius: 1.0,
+  )
 
 pub fn line_svg_snapshots_test() -> Nil {
-  plain_line() |> line.to_svg |> birdie.snap(title: "line svg, plain")
-  styled_line() |> line.to_svg |> birdie.snap(title: "line svg, styled")
-  signed_line() |> line.to_svg |> birdie.snap(title: "line svg, signed area")
+  sparklinekit.line_svg(series, plain_line())
+  |> birdie.snap(title: "line svg, plain")
+  sparklinekit.line_svg(series, styled_line())
+  |> birdie.snap(title: "line svg, styled")
+  sparklinekit.line_svg(signed, signed_line())
+  |> birdie.snap(title: "line svg, signed area")
 }
 
 pub fn bar_svg_snapshots_test() -> Nil {
-  plain_bar() |> bar.to_svg |> birdie.snap(title: "bar svg, plain")
-  signed_bar() |> bar.to_svg |> birdie.snap(title: "bar svg, signed rounded")
+  sparklinekit.bar_svg(series, plain_bar())
+  |> birdie.snap(title: "bar svg, plain")
+  sparklinekit.bar_svg(signed, signed_bar)
+  |> birdie.snap(title: "bar svg, signed rounded")
 }
 
 pub fn line_png_snapshots_test() -> Nil {
-  plain_line() |> line.to_png |> pixels |> birdie.snap(title: "line png, plain")
-  styled_line()
-  |> line.to_png
+  sparklinekit.line_png(series, plain_line())
+  |> pixels
+  |> birdie.snap(title: "line png, plain")
+  sparklinekit.line_png(series, styled_line())
   |> pixels
   |> birdie.snap(title: "line png, styled")
-  signed_line()
-  |> line.to_png
+  sparklinekit.line_png(signed, signed_line())
   |> pixels
   |> birdie.snap(title: "line png, signed area")
 }
 
 pub fn bar_png_snapshots_test() -> Nil {
-  plain_bar() |> bar.to_png |> pixels |> birdie.snap(title: "bar png, plain")
-  signed_bar()
-  |> bar.to_png
+  sparklinekit.bar_png(series, plain_bar())
+  |> pixels
+  |> birdie.snap(title: "bar png, plain")
+  sparklinekit.bar_png(signed, signed_bar)
   |> pixels
   |> birdie.snap(title: "bar png, signed rounded")
 }

@@ -20,10 +20,7 @@ import gleam/string
 import metamon
 import metamon/generator.{type Generator}
 import metamon/generator/range
-import sparklinekit/bar
-import sparklinekit/line
-import sparklinekit/theme
-import sparklinekit/unicode
+import sparklinekit
 
 fn series_gen() -> Generator(List(Int)) {
   generator.list_of(
@@ -49,16 +46,16 @@ pub fn unicode_ignores_positive_scale_and_shift_test() -> Nil {
     ),
     fn(input) {
       let #(values, scale, shift) = input
-      unicode.render_ints(affine(values, scale, shift))
-      == unicode.render_ints(values)
+      sparklinekit.blocks(list.map(affine(values, scale, shift), int.to_float))
+      == sparklinekit.blocks(list.map(values, int.to_float))
     },
   )
 }
 
 pub fn unicode_reversing_the_series_reverses_the_blocks_test() -> Nil {
   metamon.forall(series_gen(), fn(values) {
-    unicode.render_ints(list.reverse(values))
-    == string.reverse(unicode.render_ints(values))
+    sparklinekit.blocks(list.map(list.reverse(values), int.to_float))
+    == string.reverse(sparklinekit.blocks(list.map(values, int.to_float)))
   })
 }
 
@@ -76,25 +73,38 @@ pub fn unicode_values_inside_the_range_do_not_redraw_the_prefix_test() -> Nil {
 }
 
 fn line_outputs(values: List(Int), styled: Bool) -> #(String, BitArray) {
-  let builder = case styled {
-    False -> line.new_ints(values)
+  let values = list.map(values, int.to_float)
+  let options = case styled {
+    False -> sparklinekit.default_line_options
     True ->
-      line.new_ints(values)
-      |> line.with_theme(theme.ocean())
-      |> line.with_area_fill(True)
-      |> line.with_smoothing(0.3)
-      |> line.with_spot(2.0)
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.ocean,
+        smoothing: 0.3,
+        area: sparklinekit.GradientArea,
+        spot_radius: 2.0,
+      )
   }
-  let builder = line.with_size(builder, 60, 16)
-  #(line.to_svg(builder), line.to_png(builder))
+  let options = sparklinekit.LineOptions(..options, width: 60, height: 16)
+  #(
+    sparklinekit.line_svg(values, options),
+    sparklinekit.line_png(values, options),
+  )
 }
 
 fn bar_outputs(values: List(Int)) -> #(String, BitArray) {
-  let builder =
-    bar.new_ints(values)
-    |> bar.with_theme(theme.sunset())
-    |> bar.with_size(60, 16)
-  #(bar.to_svg(builder), bar.to_png(builder))
+  let values = list.map(values, int.to_float)
+  let options =
+    sparklinekit.BarOptions(
+      ..sparklinekit.default_bar_options,
+      width: 60,
+      height: 16,
+      theme: sparklinekit.sunset,
+    )
+  #(
+    sparklinekit.bar_svg(values, options),
+    sparklinekit.bar_png(values, options),
+  )
 }
 
 pub fn line_ignores_positive_scale_test() -> Nil {
@@ -137,9 +147,9 @@ fn prefix_is_kept(input: #(List(Int), List(Int))) -> Bool {
     Ok(lo), Ok(hi) -> {
       // Points inside [lo, hi].
       let inside = list.map(percents, fn(p) { lo + { hi - lo } * p / 100 })
-      let before = unicode.render_ints(values)
+      let before = sparklinekit.blocks(list.map(values, int.to_float))
       string.starts_with(
-        unicode.render_ints(list.append(values, inside)),
+        sparklinekit.blocks(list.map(list.append(values, inside), int.to_float)),
         before,
       )
     }

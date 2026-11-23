@@ -1,11 +1,11 @@
 //// Round 2 deep QA — five more defects.
 
+import gleam/option
 import gleam/string
 import gleeunit/should
-import sparklinekit/bar
-import sparklinekit/line
+import sparklinekit
 
-// --- Bug 6: extreme `with_stroke_width` overflows `format.coord`.
+// --- Bug 6: extreme `stroke_width` overflows `format.coord`.
 //
 // The stroke-width is written into the SVG as a literal coord via
 // `format.coord(value)`, which does `value *. 100.0`. For
@@ -17,22 +17,30 @@ import sparklinekit/line
 
 pub fn bug6_extreme_stroke_width_does_not_crash_svg_test() {
   let svg =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_stroke_width(1.0e308)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        stroke_width: 1.0e308,
+      ),
+    )
   string.starts_with(svg, "<svg") |> should.be_true
   string.contains(svg, "Infinity") |> should.be_false
   string.contains(svg, "NaN") |> should.be_false
 }
 
-// --- Bug 7: extreme `with_spot` radius — same root cause as Bug 6
-// but in a separate setter and a separate rendering element.
+// --- Bug 7: extreme `spot_radius` — same root cause as Bug 6
+// but in a separate option and a separate rendering element.
 
 pub fn bug7_extreme_spot_radius_does_not_crash_svg_test() {
   let svg =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_spot(1.0e308)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        spot_radius: 1.0e308,
+      ),
+    )
   string.starts_with(svg, "<svg") |> should.be_true
   string.contains(svg, "Infinity") |> should.be_false
   string.contains(svg, "NaN") |> should.be_false
@@ -45,29 +53,37 @@ pub fn bug7_extreme_spot_radius_does_not_crash_svg_test() {
 // grow *into* the canvas, away from the nearer edge.
 
 pub fn bug8_hairline_stays_inside_canvas_for_top_baseline_test() {
-  let svg = bar.new([0.0, -5.0]) |> bar.to_svg
+  let svg = sparklinekit.bar_svg([0.0, -5.0], sparklinekit.default_bar_options)
   // No rect y attribute may be negative.
   string.contains(svg, "y=\"-") |> should.be_false
 }
 
-// --- Bug 9: `with_area_color` accepts "any CSS colour string" per
+// --- Bug 9: the theme's `area` accepts "any CSS colour string" per
 // the docs, but when the value is not parseable as hex AND the
 // default gradient is enabled, the renderer silently substitutes
 // the stroke colour (or black for the default theme). The user's
 // literal colour disappears from the output. Gradient mode must
 // either honour the literal colour or skip the gradient entirely.
 
-pub fn bug9_gradient_with_non_hex_area_color_uses_colour_literal_test() {
+pub fn bug9_gradient_non_hex_area_color_uses_colour_literal_test() {
   let svg =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_area_color("rgb(255, 0, 0)")
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          area: option.Some("rgb(255, 0, 0)"),
+        ),
+        area: sparklinekit.GradientArea,
+      ),
+    )
   string.contains(svg, "rgb(255, 0, 0)") |> should.be_true
   string.contains(svg, "stop-color=\"#00000038\"") |> should.be_false
 }
 
 // --- Bug 10: with the default theme — where `theme.foreground` is
-// `currentColor` — calling `with_area_fill(True)` is documented as
+// `currentColor` — turning on the area fill is documented as
 // producing "a translucent tint from the stroke colour". The
 // stroke does inherit the CSS context via `stroke="currentColor"`,
 // but the area is filled with a hex gradient derived from
@@ -79,9 +95,13 @@ pub fn bug9_gradient_with_non_hex_area_color_uses_colour_literal_test() {
 
 pub fn bug10_default_theme_area_fill_inherits_currentcolor_test() {
   let svg =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_area_fill(True)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        area: sparklinekit.GradientArea,
+      ),
+    )
   // Stroke must inherit CSS via currentColor.
   string.contains(svg, "stroke=\"currentColor\"") |> should.be_true
   // The area must NOT be a hardcoded black derivation —
