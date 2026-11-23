@@ -43,9 +43,11 @@ import sparklinekit/internal/scale
 ///   output has no surrounding text and draws it black.
 ///
 /// The keywords are matched without regard to case. The chart renderers
-/// check every colour of the theme before drawing and return
+/// check all four colours before drawing, including one the chart does not
+/// use, such as `negative` in a line chart, and return
 /// `Error(InvalidColor(..))` for anything else, such as `"red"`, `"rgb(...)"`
-/// or `""`, so SVG and PNG output always agree on what a colour means.
+/// or `""`. So SVG and PNG output always agree on what a colour means, and
+/// no colour can add markup to the SVG.
 ///
 pub type Theme {
   Theme(

@@ -59,12 +59,11 @@ pub fn fade(paint: Paint, factor factor: Float) -> Paint {
   }
 }
 
-/// Solid black with no transparency — used as the fallback when a
-/// colour string cannot be parsed.
-pub const black: Rgba = Rgba(0, 0, 0, 255)
+// What `currentColor` is drawn as in PNG output.
+const black: Rgba = Rgba(0, 0, 0, 255)
 
-/// Fully transparent — used as the default PNG background.
-pub const transparent: Rgba = Rgba(0, 0, 0, 0)
+// What `none` is drawn as in PNG output.
+const transparent: Rgba = Rgba(0, 0, 0, 0)
 
 /// Parse a `#RGB`, `#RGBA`, `#RRGGBB`, or `#RRGGBBAA` string into an
 /// `Rgba`. Returns `Error(Nil)` for any other shape.
