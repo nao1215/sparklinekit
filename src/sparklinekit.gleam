@@ -847,9 +847,10 @@ pub type BarOptions {
     height: Int,
     /// Colours of the bars and the background.
     theme: Theme,
-    /// Space between bars. Negative values are treated as 0. When the gap
-    /// is wider than a bar's share of the width, bars are drawn with no
-    /// gap.
+    /// Space between neighbouring bars. Each bar is centred in an equal
+    /// share of the width, so half the gap is left at each edge. Negative
+    /// values are treated as 0, and a gap as wide as a share or wider is
+    /// dropped.
     gap: Float,
     /// Corner radius of each bar, at most half its width or height.
     /// Negative values are treated as 0.
@@ -997,21 +998,16 @@ type Rect {
 }
 
 fn bar_rects(values: List(Float), options: BarOptions) -> List(Rect) {
-  // Clamped so `value - y_min` below cannot overflow.
-  let values = list.map(values, scale.clamp_finite)
+  let values = list.map(values, scale.finite)
   let height = int.to_float(options.height)
-  let step = int.to_float(options.width) /. int.to_float(list.length(values))
-  let bar_width = case step -. options.gap >. 0.0 {
-    True -> step -. options.gap
-    False -> step
-  }
+  let #(step, bar_width, margin) = bar_layout(list.length(values), options)
   let #(lo, hi) = scale.min_max(values)
   // The visible range always includes zero, so bars grow from zero.
   let y_min = float.min(lo, 0.0)
-  let span = float.max(hi, 0.0) -. y_min
+  let y_max = float.max(hi, 0.0)
   use value, i <- list.index_map(values)
-  let x = int.to_float(i) *. step
-  case lo == hi || span <=. 0.0 {
+  let x = int.to_float(i) *. step +. margin
+  case lo == hi || y_max <=. y_min {
     // A constant series fills half the height instead of all of it, so it
     // does not look like the maximum of some wider range. Negative bars
     // hang from the top.
@@ -1027,8 +1023,8 @@ fn bar_rects(values: List(Float), options: BarOptions) -> List(Rect) {
         value:,
       )
     False -> {
-      let zero_y = height -. { 0.0 -. y_min } /. span *. height
-      let value_y = height -. { value -. y_min } /. span *. height
+      let zero_y = height -. scale.unit(0.0, y_min, y_max) *. height
+      let value_y = height -. scale.unit(value, y_min, y_max) *. height
       let #(y, bar_height) = case value >=. 0.0 {
         True -> #(value_y, zero_y -. value_y)
         False -> #(zero_y, value_y -. zero_y)
@@ -1041,6 +1037,18 @@ fn bar_rects(values: List(Float), options: BarOptions) -> List(Rect) {
         }
       }
     }
+  }
+}
+
+// The width of each bar and its left edge in its share of the width. Each
+// bar is centred in its share, so the chart has the same margin on both
+// sides and mirrors exactly when the series is reversed. A gap that leaves
+// no room for the bars is dropped.
+fn bar_layout(count: Int, options: BarOptions) -> #(Float, Float, Float) {
+  let step = int.to_float(options.width) /. int.to_float(int.max(count, 1))
+  case step -. options.gap >. 0.0 {
+    True -> #(step, step -. options.gap, options.gap /. 2.0)
+    False -> #(step, step, 0.0)
   }
 }
 
