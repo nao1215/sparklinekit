@@ -8,6 +8,8 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-23
+
 ### Breaking
 
 The public API is now the single module `sparklinekit`. The builders and the theme are plain records, so their setters and getters are removed.
