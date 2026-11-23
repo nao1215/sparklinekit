@@ -310,3 +310,12 @@ fn rect_count(svg: String) -> Int {
   |> list.length
   |> fn(n) { n - 1 }
 }
+
+// A constant negative series stood on the bottom edge like a positive one.
+pub fn constant_negative_bars_hang_from_the_top_test() {
+  let svg = sparklinekit.bar_svg([-3.0, -3.0], sparklinekit.default_bar_options)
+  assert string.contains(svg, "y=\"0.0\" width=\"99.0\" height=\"20.0\"")
+  let positive =
+    sparklinekit.bar_svg([3.0, 3.0], sparklinekit.default_bar_options)
+  assert string.contains(positive, "y=\"20.0\" width=\"99.0\" height=\"20.0\"")
+}

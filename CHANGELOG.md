@@ -57,6 +57,11 @@ tenbagger uses `sparklinekit/line` and `sparklinekit/theme` and needs to follow 
 
 - A solid area (`with_gradient_area(False)`) under a themed line used a tint of the line colour in SVG and the theme's area colour in PNG. Both now use the theme's area colour.
 - The dot on the last value kept the colour of the theme it was set with, so after `with_color` it was not the colour of the line, as its documentation said. It now follows the line colour unless `spot_color` is set.
+- The SVG area gradient under a line that never goes above zero, with at least one value below it, was opaque at the top edge and faded towards the line. It now fades away from the line, as PNG output did.
+- The area under a single negative value reached down to the bottom, while two equal negative values filled up to the top. Both now fill up to the top.
+- Bars for a constant negative series stood on the bottom edge. They now hang from the top.
+- An empty area colour wrote `fill=""` into the SVG, which browsers draw black. It now uses the foreground at 22% opacity, as `None` does.
+- An area colour of `"none"` drew no area in SVG but a tinted one in PNG. PNG output now draws no area either.
 
 ## [0.5.0] - 2026-11-19
 

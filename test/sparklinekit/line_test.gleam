@@ -505,3 +505,45 @@ pub fn spot_color_overrides_the_line_colour_test() {
   let svg = sparklinekit.line_svg([1.0, 5.0, 3.0], options)
   assert string.contains(svg, "r=\"2.0\" fill=\"#00ff00\"")
 }
+
+// The SVG gradient was opaque at the top even when the area lay above the
+// line, so it faded towards the line instead of away from it.
+pub fn gradient_fades_away_from_a_negative_line_test() {
+  let options =
+    sparklinekit.LineOptions(
+      ..sparklinekit.default_line_options,
+      theme: sparklinekit.ocean,
+      area: sparklinekit.GradientArea,
+    )
+  let below = sparklinekit.line_svg([-1.0, -5.0, -3.0], options)
+  assert string.contains(below, "x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\"")
+  assert string.contains(below, "-up\"")
+  let above = sparklinekit.line_svg([1.0, 5.0, 3.0], options)
+  assert string.contains(above, "x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"")
+}
+
+// A single negative value closed the area at the bottom, while two equal
+// negative values closed it at the top.
+pub fn single_negative_value_fills_up_to_the_top_test() {
+  let options =
+    sparklinekit.LineOptions(
+      ..sparklinekit.default_line_options,
+      area: sparklinekit.SolidArea,
+    )
+  let one = sparklinekit.line_svg([-5.0], options)
+  let two = sparklinekit.line_svg([-5.0, -5.0], options)
+  assert string.contains(one, "L 239.0 0.0 L 1.0 0.0 Z")
+  assert one == two
+}
+
+// `Some("")` wrote `fill=""` into the SVG, which browsers draw black.
+pub fn empty_area_colour_uses_the_foreground_tint_test() {
+  let options =
+    sparklinekit.LineOptions(
+      ..sparklinekit.default_line_options,
+      theme: sparklinekit.Theme(..sparklinekit.ocean, area: option.Some("")),
+      area: sparklinekit.SolidArea,
+    )
+  let svg = sparklinekit.line_svg([1.0, 5.0, 3.0], options)
+  assert string.contains(svg, "<path fill=\"#2563eb38\" stroke=\"none\"")
+}

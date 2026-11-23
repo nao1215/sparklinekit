@@ -46,7 +46,10 @@ pub type Theme {
     foreground: String,
     /// The background rectangle. `"none"` or `""` draws no background.
     background: String,
-    /// The area under a line. `None` uses the foreground at 22% opacity.
+    /// The area under a line. `None` or `Some("")` uses the foreground at 22%
+    /// opacity, and `Some("none")` draws no area. SVG output draws any other
+    /// colour as given, so a colour without its own transparency is drawn
+    /// opaque under the line.
     area: Option(String),
     /// The bars below zero. Line charts ignore it.
     negative: String,
@@ -210,7 +213,8 @@ pub type Area {
   /// One flat colour.
   SolidArea
   /// The area colour at the line, fading to transparent at the baseline.
-  /// In SVG, an area colour that is not hex is drawn flat.
+  /// In SVG, an area colour that is not hex is drawn flat, and a series
+  /// with values on both sides of zero fades from the top down.
   GradientArea
 }
 
@@ -296,7 +300,7 @@ pub fn line_svg(values: List(Float), options: LineOptions) -> String {
     area, _ -> Ok(svg_area_fill(area, options.theme, values, options))
   }
   let defs = case fill {
-    Ok(GradientFill(id:, top:)) -> gradient_defs(id, top)
+    Ok(GradientFill(id:, top:, upward:)) -> gradient_defs(id, top, upward)
     _ -> string_tree.new()
   }
   let area_layer = case fill {
@@ -330,9 +334,9 @@ pub fn line_png(values: List(Float), options: LineOptions) -> BitArray {
   let points = line_points(values, options)
   let path = sampled_path(points, options.smoothing)
   let canvas = raster.new(options.width, options.height, background_rgba(theme))
-  let canvas = case options.area {
-    NoArea -> canvas
-    area ->
+  let canvas = case options.area, area_colour(theme) {
+    NoArea, _ | _, Some("none") -> canvas
+    area, _ ->
       fill_area(
         canvas,
         path,
@@ -431,24 +435,21 @@ fn y_for(
 // series with both signs.
 fn area_baseline(values: List(Float), options: LineOptions) -> Float {
   let height = int.to_float(options.height)
-  case values {
-    [] | [_] -> height
-    _ -> {
-      let #(lo, hi) = scale.min_max(values)
-      case lo >=. 0.0, hi <=. 0.0 {
-        True, _ -> height
-        _, True -> 0.0
-        _, _ -> {
-          let #(top, bottom, _) = y_window(options)
-          y_for(0.0, lo, hi, top, bottom)
-        }
-      }
+  let #(lo, hi) = scale.min_max(values)
+  case lo >=. 0.0, hi <=. 0.0 {
+    True, _ -> height
+    _, True -> 0.0
+    _, _ -> {
+      let #(top, bottom, _) = y_window(options)
+      y_for(0.0, lo, hi, top, bottom)
     }
   }
 }
 
 type SvgAreaFill {
-  GradientFill(id: String, top: Rgba)
+  // `upward` is set when the area lies above the line, so the gradient
+  // runs from the bottom up.
+  GradientFill(id: String, top: Rgba, upward: Bool)
   FlatFill(color: String)
   // A CSS colour that cannot carry its own alpha, such as `currentColor`.
   TranslucentFill(color: String)
@@ -460,15 +461,18 @@ fn svg_area_fill(
   values: List(Float),
   options: LineOptions,
 ) -> SvgAreaFill {
-  let hex = case theme.area {
+  let area_colour = area_colour(theme)
+  let hex = case area_colour {
     Some(c) -> color.parse_hex(c)
     None ->
       color.parse_hex(theme.foreground)
       |> result.map(color.with_alpha(_, factor: area_alpha))
   }
-  case area, hex, theme.area {
+  let #(lo, hi) = scale.min_max(values)
+  let upward = lo <. 0.0 && hi <=. 0.0
+  case area, hex, area_colour {
     GradientArea, Ok(top), _ ->
-      GradientFill(id: gradient_id(top, values, options), top:)
+      GradientFill(id: gradient_id(top, upward, values, options), top:, upward:)
     _, _, Some(c) -> FlatFill(c)
     _, Ok(tint), None -> FlatFill(color.to_hex_rgba(tint))
     _, Error(_), None -> TranslucentFill(theme.foreground)
@@ -477,7 +481,12 @@ fn svg_area_fill(
 
 // The id includes the size, the value count and the colour, so several
 // charts inlined into one page do not share a gradient by accident.
-fn gradient_id(top: Rgba, values: List(Float), options: LineOptions) -> String {
+fn gradient_id(
+  top: Rgba,
+  upward: Bool,
+  values: List(Float),
+  options: LineOptions,
+) -> String {
   "sparklinekit-area-"
   <> int.to_string(options.width)
   <> "x"
@@ -486,13 +495,30 @@ fn gradient_id(top: Rgba, values: List(Float), options: LineOptions) -> String {
   <> int.to_string(list.length(values))
   <> "-"
   <> string.replace(color.to_hex_rgba(top), "#", "")
+  <> case upward {
+    True -> "-up"
+    False -> ""
+  }
 }
 
-fn gradient_defs(id: String, top: Rgba) -> StringTree {
+// An empty area colour means the same as none, as it does for the
+// background.
+fn area_colour(theme: Theme) -> Option(String) {
+  case theme.area {
+    Some("") -> None
+    other -> other
+  }
+}
+
+fn gradient_defs(id: String, top: Rgba, upward: Bool) -> StringTree {
+  let direction = case upward {
+    True -> "\" x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\">"
+    False -> "\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">"
+  }
   string_tree.from_strings([
     "<defs><linearGradient id=\"",
     id,
-    "\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">",
+    direction,
     "<stop offset=\"0%\" stop-color=\"",
     color.to_hex_rgba(top),
     "\"/>",
@@ -675,7 +701,7 @@ fn cubic_at(
 
 fn png_area_colour(theme: Theme, foreground: Rgba) -> Rgba {
   let tint = color.with_alpha(foreground, factor: area_alpha)
-  case theme.area {
+  case area_colour(theme) {
     Some(c) -> color.parse_or(c, fallback: tint)
     None -> tint
   }
@@ -782,7 +808,8 @@ const min_bar_height: Float = 1.0
 /// in the theme's `negative` colour.
 ///
 /// An empty series gives an `<svg>` with no bars. A single value, or a
-/// series where every value is the same, is drawn as half-height bars.
+/// series where every value is the same, is drawn as half-height bars,
+/// standing on the bottom edge or hanging from the top for negative values.
 ///
 /// ## Examples
 ///
@@ -901,11 +928,15 @@ fn bar_rects(values: List(Float), options: BarOptions) -> List(Rect) {
   let x = int.to_float(i) *. step
   case lo == hi || span <=. 0.0 {
     // A constant series fills half the height instead of all of it, so it
-    // does not look like the maximum of some wider range.
+    // does not look like the maximum of some wider range. Negative bars
+    // hang from the top.
     True ->
       Rect(
         x:,
-        y: height /. 2.0,
+        y: case value <. 0.0 {
+          True -> 0.0
+          False -> height /. 2.0
+        },
         width: bar_width,
         height: height /. 2.0,
         value:,
