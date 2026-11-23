@@ -50,14 +50,12 @@ You can also run individual steps:
 
 ## Project structure
 
-- `src/sparklinekit.gleam` — top-level module (package version, doc
-  entry point)
-- `src/sparklinekit/unicode.gleam` — terminal renderer
-- `src/sparklinekit/line.gleam` — SVG line renderer
-- `src/sparklinekit/bar.gleam` — SVG bar renderer
-- `src/sparklinekit/internal/scale.gleam` — shared numerical helpers
+- `src/sparklinekit.gleam` — the whole public API: themes, Unicode
+  blocks, line and bar charts
+- `src/sparklinekit/internal/` — scaling, colour parsing, SVG number
+  formatting, the raster canvas and the PNG encoder
 - `test/` — the `gleeunit` test suite
-- `test/gen/sample.gleam` — regenerates the README example SVGs
+- `test/gen/sample.gleam` — regenerates the README images
 - `scripts/lib/mise_bootstrap.sh` — makes the mise-managed toolchain
   available to `just` and shell scripts
 - `.github/workflows/` — CI and release automation
@@ -104,8 +102,7 @@ Steps for a new release `vX.Y.Z`:
 2. Promote any items under `## Unreleased` in `CHANGELOG.md` into a
    new `## [X.Y.Z] - YYYY-MM-DD` section directly below
    `## Unreleased`.
-3. Bump `version = "X.Y.Z"` in `gleam.toml` and the
-   `package_version/0` constant in `src/sparklinekit.gleam`.
+3. Bump `version = "X.Y.Z"` in `gleam.toml`.
 4. Open a PR with the changelog and version bump, get it green and
    merged.
 5. After merge, fast-forward `main` and tag the merge commit:

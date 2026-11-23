@@ -10,16 +10,18 @@
 import gleam/bit_array
 import gleam/string
 import gleeunit/should
-import sparklinekit/bar
-import sparklinekit/line
-import sparklinekit/theme
+import sparklinekit
 
 const png_signature: BitArray = <<137, 80, 78, 71, 13, 10, 26, 10>>
 
 // --- Canonical SVG line contract --------------------------------------
 
 pub fn snapshot_minimal_line_attributes_test() {
-  let svg = line.new([1.0, 5.0, 3.0, 8.0, 4.0]) |> line.to_svg
+  let svg =
+    sparklinekit.line_svg(
+      [1.0, 5.0, 3.0, 8.0, 4.0],
+      sparklinekit.default_line_options,
+    )
   // Frame contract.
   string.contains(svg, "xmlns=\"http://www.w3.org/2000/svg\"")
   |> should.be_true
@@ -37,21 +39,29 @@ pub fn snapshot_minimal_line_attributes_test() {
 
 pub fn snapshot_themed_ocean_line_attributes_test() {
   let svg =
-    line.new([1.0, 5.0, 3.0, 8.0, 4.0])
-    |> line.with_theme(theme.ocean())
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 5.0, 3.0, 8.0, 4.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.ocean,
+      ),
+    )
   string.contains(svg, "stroke=\"#2563EB\"") |> should.be_true
   string.contains(svg, "fill=\"#FFFFFF\"") |> should.be_true
 }
 
 pub fn snapshot_area_line_emits_linear_gradient_test() {
   let svg =
-    line.new([1.0, 5.0, 3.0, 8.0, 4.0, 9.0, 6.0])
-    |> line.with_theme(theme.ocean())
-    |> line.with_smoothing(0.25)
-    |> line.with_area_fill(True)
-    |> line.with_spot(3.0)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 5.0, 3.0, 8.0, 4.0, 9.0, 6.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.ocean,
+        smoothing: 0.25,
+        area: sparklinekit.GradientArea,
+        spot_radius: 3.0,
+      ),
+    )
   string.contains(svg, "<defs>") |> should.be_true
   string.contains(svg, "<linearGradient") |> should.be_true
   string.contains(svg, "<circle") |> should.be_true
@@ -62,7 +72,11 @@ pub fn snapshot_area_line_emits_linear_gradient_test() {
 // --- Canonical SVG bar contract --------------------------------------
 
 pub fn snapshot_minimal_bar_attributes_test() {
-  let svg = bar.new([3.0, 7.0, 2.0, 9.0, 5.0]) |> bar.to_svg
+  let svg =
+    sparklinekit.bar_svg(
+      [3.0, 7.0, 2.0, 9.0, 5.0],
+      sparklinekit.default_bar_options,
+    )
   string.contains(svg, "viewBox=\"0 0 200 40\"") |> should.be_true
   string.contains(svg, "width=\"200\"") |> should.be_true
   string.contains(svg, "height=\"40\"") |> should.be_true
@@ -71,21 +85,32 @@ pub fn snapshot_minimal_bar_attributes_test() {
 
 pub fn snapshot_rounded_amber_bar_attributes_test() {
   let svg =
-    bar.new([3.0, 7.0, 2.0, 9.0, 5.0, 11.0, 6.0])
-    |> bar.with_theme(theme.amber())
-    |> bar.with_corner_radius(3.0)
-    |> bar.with_bar_gap(4.0)
-    |> bar.to_svg
+    sparklinekit.bar_svg(
+      [3.0, 7.0, 2.0, 9.0, 5.0, 11.0, 6.0],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        theme: sparklinekit.amber,
+        gap: 4.0,
+        corner_radius: 3.0,
+      ),
+    )
   string.contains(svg, "fill=\"#F59E0B\"") |> should.be_true
   string.contains(svg, "rx=\"3.0\"") |> should.be_true
 }
 
 pub fn snapshot_win_loss_bar_uses_negative_color_test() {
   let svg =
-    bar.new([3.0, -2.0, 5.0, -4.0, 6.0, -1.0])
-    |> bar.with_color("#22A06B")
-    |> bar.with_negative_color("#E5484D")
-    |> bar.to_svg
+    sparklinekit.bar_svg(
+      [3.0, -2.0, 5.0, -4.0, 6.0, -1.0],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          foreground: "#22A06B",
+          negative: "#E5484D",
+        ),
+      ),
+    )
   string.contains(svg, "fill=\"#22A06B\"") |> should.be_true
   string.contains(svg, "fill=\"#E5484D\"") |> should.be_true
 }
@@ -94,10 +119,18 @@ pub fn snapshot_win_loss_bar_uses_negative_color_test() {
 
 pub fn snapshot_line_png_signature_test() {
   let png =
-    line.new([1.0, 5.0, 3.0, 8.0, 4.0])
-    |> line.with_color("#378ADD")
-    |> line.with_size(240, 60)
-    |> line.to_png
+    sparklinekit.line_png(
+      [1.0, 5.0, 3.0, 8.0, 4.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 240,
+        height: 60,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          foreground: "#378ADD",
+        ),
+      ),
+    )
   case bit_array.slice(png, 0, 8) {
     Ok(head) -> head |> should.equal(png_signature)
     Error(_) -> should.fail()
@@ -106,9 +139,13 @@ pub fn snapshot_line_png_signature_test() {
 
 pub fn snapshot_bar_png_signature_test() {
   let png =
-    bar.new([3.0, 7.0, 2.0, 9.0, 5.0, 11.0, 6.0])
-    |> bar.with_theme(theme.amber())
-    |> bar.to_png
+    sparklinekit.bar_png(
+      [3.0, 7.0, 2.0, 9.0, 5.0, 11.0, 6.0],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        theme: sparklinekit.amber,
+      ),
+    )
   case bit_array.slice(png, 0, 8) {
     Ok(head) -> head |> should.equal(png_signature)
     Error(_) -> should.fail()
@@ -119,12 +156,16 @@ pub fn snapshot_bar_png_signature_test() {
 
 pub fn snapshot_line_stability_test() {
   let make = fn() {
-    line.new([1.0, 5.0, 22.0, 13.0, 5.0, 2.0, 7.0])
-    |> line.with_theme(theme.ocean())
-    |> line.with_smoothing(0.25)
-    |> line.with_area_fill(True)
-    |> line.with_spot(3.0)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 5.0, 22.0, 13.0, 5.0, 2.0, 7.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.ocean,
+        smoothing: 0.25,
+        area: sparklinekit.GradientArea,
+        spot_radius: 3.0,
+      ),
+    )
   }
   let a = make()
   let b = make()
@@ -135,10 +176,14 @@ pub fn snapshot_line_stability_test() {
 
 pub fn snapshot_bar_stability_test() {
   let make = fn() {
-    bar.new([3.0, -2.0, 5.0, -4.0, 6.0, -1.0])
-    |> bar.with_theme(theme.forest())
-    |> bar.with_corner_radius(3.0)
-    |> bar.to_svg
+    sparklinekit.bar_svg(
+      [3.0, -2.0, 5.0, -4.0, 6.0, -1.0],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        theme: sparklinekit.forest,
+        corner_radius: 3.0,
+      ),
+    )
   }
   let a = make()
   let b = make()
@@ -149,9 +194,13 @@ pub fn snapshot_bar_stability_test() {
 
 pub fn snapshot_png_stability_test() {
   let make = fn() {
-    line.new([1.0, 5.0, 3.0, 8.0, 4.0])
-    |> line.with_theme(theme.ocean())
-    |> line.to_png
+    sparklinekit.line_png(
+      [1.0, 5.0, 3.0, 8.0, 4.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.ocean,
+      ),
+    )
   }
   make() |> should.equal(make())
 }

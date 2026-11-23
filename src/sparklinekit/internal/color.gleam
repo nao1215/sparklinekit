@@ -54,13 +54,6 @@ pub fn parse_or(value: String, fallback fallback: Rgba) -> Rgba {
   }
 }
 
-/// Render an `Rgba` as `#rrggbb` (alpha dropped) for use in SVG
-/// attributes. Use [`to_hex_rgba`](#to_hex_rgba) when alpha matters.
-pub fn to_hex_rgb(rgba: Rgba) -> String {
-  let Rgba(r, g, b, _) = rgba
-  "#" <> two_hex(r) <> two_hex(g) <> two_hex(b)
-}
-
 /// Render an `Rgba` as `#rrggbbaa`.
 pub fn to_hex_rgba(rgba: Rgba) -> String {
   let Rgba(r, g, b, a) = rgba
@@ -71,11 +64,7 @@ pub fn to_hex_rgba(rgba: Rgba) -> String {
 /// to produce a translucent variant of `rgba`.
 pub fn with_alpha(rgba: Rgba, factor factor: Float) -> Rgba {
   let Rgba(r, g, b, a) = rgba
-  let clamped = case factor {
-    f if f <. 0.0 -> 0.0
-    f if f >. 1.0 -> 1.0
-    f -> f
-  }
+  let clamped = float.clamp(factor, min: 0.0, max: 1.0)
   let new_a = float.round(int.to_float(a) *. clamped)
   Rgba(r, g, b, new_a)
 }
@@ -197,9 +186,5 @@ fn two_hex(value: Int) -> String {
 }
 
 fn clamp_byte(value: Int) -> Int {
-  case value {
-    v if v < 0 -> 0
-    v if v > 255 -> 255
-    v -> v
-  }
+  int.clamp(value, min: 0, max: 255)
 }

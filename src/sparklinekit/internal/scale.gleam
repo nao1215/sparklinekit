@@ -23,14 +23,11 @@ const safe_finite_magnitude: Float = 1.0e300
 /// This is the renderer's overflow guard for adversarial input — see
 /// the constant docs above.
 pub fn clamp_finite(value: Float) -> Float {
-  case value >. safe_finite_magnitude {
-    True -> safe_finite_magnitude
-    False ->
-      case value <. 0.0 -. safe_finite_magnitude {
-        True -> 0.0 -. safe_finite_magnitude
-        False -> value
-      }
-  }
+  float.clamp(
+    value,
+    min: 0.0 -. safe_finite_magnitude,
+    max: safe_finite_magnitude,
+  )
 }
 
 /// Return the `#(minimum, maximum)` of a non-empty list of floats.
@@ -77,26 +74,5 @@ pub fn unit(value: Float, min: Float, max: Float) -> Float {
   case span <=. 0.0 {
     True -> 0.5
     False -> { safe_value -. safe_min } /. span
-  }
-}
-
-/// Round a float to the nearest integer using IEEE 754 round-half-away
-/// from zero (the same behaviour as Erlang's `:erlang.round/1`).
-///
-/// `gleam/float.round` already does this on both targets; this wrapper
-/// exists to keep call sites self-documenting.
-pub fn round_to_int(value: Float) -> Int {
-  float.round(value)
-}
-
-/// Clamp `value` into `[lo, hi]`.
-pub fn clamp_int(value: Int, lo: Int, hi: Int) -> Int {
-  case value < lo {
-    True -> lo
-    False ->
-      case value > hi {
-        True -> hi
-        False -> value
-      }
   }
 }

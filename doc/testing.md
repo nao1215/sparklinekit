@@ -4,7 +4,7 @@
 
 ## Examples and unit tests
 
-`test/sparklinekit/line_test.gleam`, `bar_test.gleam`, `png_test.gleam` and `theme_test.gleam` check each renderer and builder option with fixed inputs, and `readme_test.gleam` runs the README examples. Each fixed bug keeps its reproduction in `test/sparklinekit/qa/deep_test.gleam`, `deep2_test.gleam` or a `regression_*_test.gleam` file.
+`test/sparklinekit/line_test.gleam`, `bar_test.gleam`, `png_test.gleam` and `unicode_test.gleam` check each renderer and option with fixed inputs, `readme_test.gleam` runs the README examples, and `doc_examples_test.gleam` checks the examples in the doc comments. Each fixed bug keeps its reproduction in `test/sparklinekit/qa/deep_test.gleam`, `deep2_test.gleam` or a `regression_*_test.gleam` file.
 
 ## Boundary values
 
@@ -16,7 +16,7 @@
 
 ## Metamorphic relations
 
-- `test/sparklinekit/qa/metamorphic_test.gleam` checks scaling, shifting and reversing a fixed set of series, and that repeated builder calls keep the last value.
+- `test/sparklinekit/qa/metamorphic_test.gleam` checks scaling, shifting and reversing a fixed set of series.
 - `test/sparklinekit/metamon_metamorphic_test.gleam` checks the same kind of relations with metamon on random series, and on the SVG and PNG output byte for byte: scaling by a positive integer never changes a line or bar picture (with and without theme, area fill, smoothing and spot), shifting never changes a plain line, and values appended inside the observed range never redraw the Unicode blocks already drawn.
 
 ## Differential testing

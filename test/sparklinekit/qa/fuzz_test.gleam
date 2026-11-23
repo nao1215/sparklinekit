@@ -16,24 +16,27 @@
 
 import gleam/int
 import gleam/list
+import gleam/option
 import gleam/string
 import gleeunit/should
-import sparklinekit/bar
-import sparklinekit/line
-import sparklinekit/unicode
+import sparklinekit
 
 // --- Colour-string fuzz (line) ---------------------------------------
 
-pub fn line_with_color_handles_empty_string_test() {
+pub fn line_color_handles_empty_string_test() {
   let svg =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_color("")
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.Theme(..sparklinekit.default_theme, foreground: ""),
+      ),
+    )
   string.starts_with(svg, "<svg") |> should.be_true
   string.ends_with(svg, "</svg>") |> should.be_true
 }
 
-pub fn line_with_color_handles_xml_special_chars_test() {
+pub fn line_color_handles_xml_special_chars_test() {
   let payloads = [
     "<script>",
     "\"><script>",
@@ -45,9 +48,16 @@ pub fn line_with_color_handles_xml_special_chars_test() {
   ]
   list.each(payloads, fn(payload) {
     let svg =
-      line.new([1.0, 2.0, 3.0])
-      |> line.with_color(payload)
-      |> line.to_svg
+      sparklinekit.line_svg(
+        [1.0, 2.0, 3.0],
+        sparklinekit.LineOptions(
+          ..sparklinekit.default_line_options,
+          theme: sparklinekit.Theme(
+            ..sparklinekit.default_theme,
+            foreground: payload,
+          ),
+        ),
+      )
     // The malicious payload must not appear unescaped inside the SVG.
     string.contains(svg, "<script>") |> should.be_false
     string.contains(svg, "</svg><script>") |> should.be_false
@@ -56,84 +66,138 @@ pub fn line_with_color_handles_xml_special_chars_test() {
   })
 }
 
-pub fn line_with_color_handles_very_long_string_test() {
+pub fn line_color_handles_very_long_string_test() {
   let long = string.repeat("a", 10_000)
   let svg =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_color(long)
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          foreground: long,
+        ),
+      ),
+    )
   string.starts_with(svg, "<svg") |> should.be_true
   string.ends_with(svg, "</svg>") |> should.be_true
 }
 
-pub fn line_with_color_handles_embedded_quotes_test() {
+pub fn line_color_handles_embedded_quotes_test() {
   let svg =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_color("red\" onload=\"alert(1)")
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          foreground: "red\" onload=\"alert(1)",
+        ),
+      ),
+    )
   // `onload` must not appear as a real attribute — it should be
   // escaped inside the colour attribute value.
   string.contains(svg, "stroke=\"red\" onload=") |> should.be_false
   string.ends_with(svg, "</svg>") |> should.be_true
 }
 
-pub fn line_with_background_color_handles_xml_special_chars_test() {
+pub fn line_background_color_handles_xml_special_chars_test() {
   let svg =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_background_color("<script>")
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          background: "<script>",
+        ),
+      ),
+    )
   string.contains(svg, "<script>") |> should.be_false
   string.ends_with(svg, "</svg>") |> should.be_true
 }
 
-pub fn line_with_area_color_handles_xml_special_chars_test() {
+pub fn line_area_color_handles_xml_special_chars_test() {
   let svg =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_area_color("\"><foo")
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          area: option.Some("\"><foo"),
+        ),
+        area: sparklinekit.GradientArea,
+      ),
+    )
   string.contains(svg, "<foo") |> should.be_false
   string.ends_with(svg, "</svg>") |> should.be_true
 }
 
-pub fn line_with_spot_color_handles_xml_special_chars_test() {
+pub fn line_spot_color_handles_xml_special_chars_test() {
   let svg =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_spot(3.0)
-    |> line.with_spot_color("\"><evil>")
-    |> line.to_svg
+    sparklinekit.line_svg(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        spot_radius: 3.0,
+        spot_color: option.Some("\"><evil>"),
+      ),
+    )
   string.contains(svg, "<evil>") |> should.be_false
   string.ends_with(svg, "</svg>") |> should.be_true
 }
 
 // --- Colour-string fuzz (bar) ----------------------------------------
 
-pub fn bar_with_color_handles_xml_special_chars_test() {
+pub fn bar_color_handles_xml_special_chars_test() {
   let payloads = ["<script>", "\"><foo", "&amp;", "'/>", "</svg>"]
   list.each(payloads, fn(payload) {
     let svg =
-      bar.new([1.0, 2.0, 3.0])
-      |> bar.with_color(payload)
-      |> bar.to_svg
+      sparklinekit.bar_svg(
+        [1.0, 2.0, 3.0],
+        sparklinekit.BarOptions(
+          ..sparklinekit.default_bar_options,
+          theme: sparklinekit.Theme(
+            ..sparklinekit.default_theme,
+            foreground: payload,
+          ),
+        ),
+      )
     string.contains(svg, "<script>") |> should.be_false
     string.contains(svg, "<foo") |> should.be_false
     string.ends_with(svg, "</svg>") |> should.be_true
   })
 }
 
-pub fn bar_with_negative_color_handles_xml_special_chars_test() {
+pub fn bar_negative_color_handles_xml_special_chars_test() {
   let svg =
-    bar.new([1.0, -2.0, 3.0])
-    |> bar.with_negative_color("\"><evil>")
-    |> bar.to_svg
+    sparklinekit.bar_svg(
+      [1.0, -2.0, 3.0],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          negative: "\"><evil>",
+        ),
+      ),
+    )
   string.contains(svg, "<evil>") |> should.be_false
   string.ends_with(svg, "</svg>") |> should.be_true
 }
 
-pub fn bar_with_background_color_handles_xml_special_chars_test() {
+pub fn bar_background_color_handles_xml_special_chars_test() {
   let svg =
-    bar.new([1.0, 2.0])
-    |> bar.with_background_color("<script>")
-    |> bar.to_svg
+    sparklinekit.bar_svg(
+      [1.0, 2.0],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          background: "<script>",
+        ),
+      ),
+    )
   string.contains(svg, "<script>") |> should.be_false
   string.ends_with(svg, "</svg>") |> should.be_true
 }
@@ -144,35 +208,60 @@ pub fn line_to_png_handles_junk_colour_test() {
   // PNG parses the colour as hex; an unparseable colour should fall
   // back to the theme default rather than panic.
   let _png =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_color("not-a-hex")
-    |> line.to_png
+    sparklinekit.line_png(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          foreground: "not-a-hex",
+        ),
+      ),
+    )
   Nil
 }
 
 pub fn line_to_png_handles_empty_colour_test() {
   let _png =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_color("")
-    |> line.to_png
+    sparklinekit.line_png(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.Theme(..sparklinekit.default_theme, foreground: ""),
+      ),
+    )
   Nil
 }
 
 pub fn line_to_png_handles_long_colour_test() {
   let long = string.repeat("z", 10_000)
   let _png =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_color(long)
-    |> line.to_png
+    sparklinekit.line_png(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          foreground: long,
+        ),
+      ),
+    )
   Nil
 }
 
 pub fn bar_to_png_handles_junk_colour_test() {
   let _png =
-    bar.new([1.0, 2.0, 3.0])
-    |> bar.with_color("rgb(garbage)")
-    |> bar.with_negative_color("hsl(also-garbage)")
-    |> bar.to_png
+    sparklinekit.bar_png(
+      [1.0, 2.0, 3.0],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          foreground: "rgb(garbage)",
+          negative: "hsl(also-garbage)",
+        ),
+      ),
+    )
   Nil
 }
 
@@ -189,11 +278,11 @@ pub fn unicode_handles_thousand_extreme_values_test() {
         _ -> 1.0
       }
     })
-  let out = unicode.render(xs)
+  let out = sparklinekit.blocks(xs)
   string.length(out) |> should.equal(1000)
 }
 
-pub fn line_handles_many_values_with_extreme_floats_test() {
+pub fn line_handles_many_values_extreme_floats_test() {
   let xs =
     list_range(1, 200)
     |> list.map(fn(i) {
@@ -203,12 +292,12 @@ pub fn line_handles_many_values_with_extreme_floats_test() {
         _ -> 0.0
       }
     })
-  let svg = line.new(xs) |> line.to_svg
+  let svg = sparklinekit.line_svg(xs, sparklinekit.default_line_options)
   string.starts_with(svg, "<svg") |> should.be_true
   string.ends_with(svg, "</svg>") |> should.be_true
 }
 
-pub fn bar_handles_many_values_with_extreme_floats_test() {
+pub fn bar_handles_many_values_extreme_floats_test() {
   let xs =
     list_range(1, 200)
     |> list.map(fn(i) {
@@ -218,7 +307,7 @@ pub fn bar_handles_many_values_with_extreme_floats_test() {
         _ -> 0.0
       }
     })
-  let svg = bar.new(xs) |> bar.to_svg
+  let svg = sparklinekit.bar_svg(xs, sparklinekit.default_bar_options)
   string.starts_with(svg, "<svg") |> should.be_true
   string.ends_with(svg, "</svg>") |> should.be_true
 }

@@ -6,37 +6,15 @@
 
 import gleam/string
 import gleeunit/should
-import sparklinekit/bar
-import sparklinekit/line
-import sparklinekit/unicode
+import sparklinekit
 
-// --- Bug 1: `with_area_fill(False)` permanently discards a prior
-// `with_area_color`. Disabling the area fill and re-enabling it
-// should restore the explicit colour, not silently fall back to the
-// auto-tint derived from the stroke.
-
-pub fn bug1_area_fill_toggle_preserves_explicit_colour_test() {
-  let a =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_area_color("#123456")
-    |> line.to_svg
-  let b =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_area_color("#123456")
-    |> line.with_area_fill(False)
-    |> line.with_area_fill(True)
-    |> line.to_svg
-  a |> should.equal(b)
-}
-
-// --- Bug 2: `bar.new` (no explicit theme) ignores the negative-bar
-// colour declared by `theme.default()`. Mixed-sign input produces
-// negatives in the *same* colour as positives, hiding the sign
-// distinction. The default theme exposes `negative: "#EF4444"` —
-// it should be honoured, just like `with_theme(...)` does.
+// --- Bug 2: the default options ignored the negative-bar colour of
+// `default_theme`, so negatives were drawn in the same colour as
+// positives.
 
 pub fn bug2_bar_default_theme_negative_colour_is_used_test() {
-  let svg = bar.new([3.0, -2.0, 5.0]) |> bar.to_svg
+  let svg =
+    sparklinekit.bar_svg([3.0, -2.0, 5.0], sparklinekit.default_bar_options)
   string.contains(svg, "fill=\"#EF4444\"")
   |> should.be_true
 }
@@ -51,7 +29,7 @@ pub fn bug2_bar_default_theme_negative_colour_is_used_test() {
 pub fn bug3_unicode_extreme_float_range_does_not_crash_test() {
   let huge = 1.0e308
   let neg_huge = 0.0 -. 1.0e308
-  let out = unicode.render([neg_huge, 0.0, huge])
+  let out = sparklinekit.blocks([neg_huge, 0.0, huge])
   string.length(out) |> should.equal(3)
 }
 
@@ -62,8 +40,8 @@ pub fn bug3_unicode_extreme_float_range_does_not_crash_test() {
 // fix forces a minimum 1-px hairline at the baseline so a value
 // of exactly zero is still drawn.
 
-pub fn bug4_bar_zero_value_renders_with_nonzero_height_test() {
-  let svg = bar.new([0.0, 5.0]) |> bar.to_svg
+pub fn bug4_bar_zero_value_renders_nonzero_height_test() {
+  let svg = sparklinekit.bar_svg([0.0, 5.0], sparklinekit.default_bar_options)
   string.contains(svg, "height=\"0.0\"")
   |> should.be_false
 }
@@ -78,7 +56,11 @@ pub fn bug4_bar_zero_value_renders_with_nonzero_height_test() {
 pub fn bug5_line_extreme_float_svg_has_no_non_finite_coordinates_test() {
   let huge = 1.0e308
   let neg_huge = 0.0 -. 1.0e308
-  let svg = line.new([neg_huge, 0.0, huge]) |> line.to_svg
+  let svg =
+    sparklinekit.line_svg(
+      [neg_huge, 0.0, huge],
+      sparklinekit.default_line_options,
+    )
   string.contains(svg, "NaN") |> should.be_false
   string.contains(svg, "Infinity") |> should.be_false
   string.contains(svg, "inf") |> should.be_false

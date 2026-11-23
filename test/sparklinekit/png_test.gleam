@@ -1,27 +1,33 @@
 import gleam/bit_array
 import gleeunit/should
-import sparklinekit/bar
-import sparklinekit/line
-import sparklinekit/theme
+import sparklinekit
 
 const png_signature: BitArray = <<137, 80, 78, 71, 13, 10, 26, 10>>
 
-pub fn line_png_starts_with_signature_test() {
+pub fn line_png_starts_signature_test() {
   let bytes =
-    line.new([1.0, 5.0, 3.0, 8.0, 4.0])
-    |> line.with_theme(theme.ocean())
-    |> line.to_png
+    sparklinekit.line_png(
+      [1.0, 5.0, 3.0, 8.0, 4.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        theme: sparklinekit.ocean,
+      ),
+    )
   case bit_array.slice(bytes, 0, 8) {
     Ok(head) -> head |> should.equal(png_signature)
     Error(_) -> should.fail()
   }
 }
 
-pub fn bar_png_starts_with_signature_test() {
+pub fn bar_png_starts_signature_test() {
   let bytes =
-    bar.new([3.0, 7.0, 2.0, 9.0])
-    |> bar.with_theme(theme.sunset())
-    |> bar.to_png
+    sparklinekit.bar_png(
+      [3.0, 7.0, 2.0, 9.0],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        theme: sparklinekit.sunset,
+      ),
+    )
   case bit_array.slice(bytes, 0, 8) {
     Ok(head) -> head |> should.equal(png_signature)
     Error(_) -> should.fail()
@@ -30,9 +36,14 @@ pub fn bar_png_starts_with_signature_test() {
 
 pub fn line_png_for_empty_input_still_returns_valid_signature_test() {
   let bytes =
-    line.new([])
-    |> line.with_size(40, 20)
-    |> line.to_png
+    sparklinekit.line_png(
+      [],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 40,
+        height: 20,
+      ),
+    )
   case bit_array.slice(bytes, 0, 8) {
     Ok(head) -> head |> should.equal(png_signature)
     Error(_) -> should.fail()
@@ -41,13 +52,23 @@ pub fn line_png_for_empty_input_still_returns_valid_signature_test() {
 
 pub fn empty_input_png_has_the_configured_size_test() {
   let line_png =
-    line.new([])
-    |> line.with_size(40, 20)
-    |> line.to_png
+    sparklinekit.line_png(
+      [],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 40,
+        height: 20,
+      ),
+    )
   let bar_png =
-    bar.new([])
-    |> bar.with_size(40, 20)
-    |> bar.to_png
+    sparklinekit.bar_png(
+      [],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        width: 40,
+        height: 20,
+      ),
+    )
   ihdr_size(line_png) |> should.equal(Ok(#(40, 20)))
   ihdr_size(bar_png) |> should.equal(Ok(#(40, 20)))
 }
@@ -56,15 +77,31 @@ pub fn empty_input_png_is_a_blank_canvas_test() {
   // Nothing is drawn for an empty series, so the line and bar
   // renderers produce the same canvas for the same size and background.
   let line_png =
-    line.new([])
-    |> line.with_size(12, 8)
-    |> line.with_background_color("#ffffff")
-    |> line.to_png
+    sparklinekit.line_png(
+      [],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 12,
+        height: 8,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          background: "#ffffff",
+        ),
+      ),
+    )
   let bar_png =
-    bar.new([])
-    |> bar.with_size(12, 8)
-    |> bar.with_background_color("#ffffff")
-    |> bar.to_png
+    sparklinekit.bar_png(
+      [],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        width: 12,
+        height: 8,
+        theme: sparklinekit.Theme(
+          ..sparklinekit.default_theme,
+          background: "#ffffff",
+        ),
+      ),
+    )
   line_png |> should.equal(bar_png)
 }
 
@@ -79,38 +116,41 @@ fn ihdr_size(png: BitArray) -> Result(#(Int, Int), Nil) {
 
 pub fn bar_png_for_single_value_still_returns_valid_signature_test() {
   let bytes =
-    bar.new([5.0])
-    |> bar.with_size(20, 20)
-    |> bar.to_png
+    sparklinekit.bar_png(
+      [5.0],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        width: 20,
+        height: 20,
+      ),
+    )
   case bit_array.slice(bytes, 0, 8) {
     Ok(head) -> head |> should.equal(png_signature)
     Error(_) -> should.fail()
   }
 }
 
-pub fn line_png_size_grows_with_canvas_test() {
+pub fn line_png_size_grows_canvas_test() {
   let small =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_size(10, 10)
-    |> line.to_png
+    sparklinekit.line_png(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 10,
+        height: 10,
+      ),
+    )
   let large =
-    line.new([1.0, 2.0, 3.0])
-    |> line.with_size(100, 100)
-    |> line.to_png
+    sparklinekit.line_png(
+      [1.0, 2.0, 3.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 100,
+        height: 100,
+      ),
+    )
   case bit_array.byte_size(large) > bit_array.byte_size(small) {
     True -> Nil
     False -> should.fail()
   }
-}
-
-pub fn bar_png_with_int_input_matches_float_input_test() {
-  let int_bytes =
-    bar.new_ints([1, 2, 3])
-    |> bar.with_size(20, 20)
-    |> bar.to_png
-  let float_bytes =
-    bar.new([1.0, 2.0, 3.0])
-    |> bar.with_size(20, 20)
-    |> bar.to_png
-  int_bytes |> should.equal(float_bytes)
 }
