@@ -42,21 +42,6 @@ pub fn main() -> Nil {
     [3.0, -2.0, 5.0, -4.0, 6.0, -1.0],
     BarOptions(..bar, theme: sparklinekit.forest, gap: 8.0),
   )
-  write_line(
-    "edge-line-single",
-    [5.0],
-    LineOptions(..line, smoothing: 0.0, area: sparklinekit.NoArea),
-  )
-  write_bar(
-    "edge-bar-single",
-    [5.0],
-    BarOptions(..bar, theme: sparklinekit.sunset, gap: 0.0),
-  )
-  write_line(
-    "edge-line-negative",
-    [3.0, -2.0, 5.0, -4.0, 6.0, -1.0],
-    LineOptions(..line, smoothing: 0.2),
-  )
   [
     #("ocean", sparklinekit.ocean),
     #("forest", sparklinekit.forest),
