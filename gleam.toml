@@ -1,5 +1,5 @@
 name = "sparklinekit"
-version = "0.6.0"
+version = "0.7.0"
 description = "Sparklines for Gleam: Unicode blocks for a terminal, and line or bar charts as SVG text or PNG bytes."
 licences = ["MIT"]
 repository = { type = "github", user = "nao1215", repo = "sparklinekit" }

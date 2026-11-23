@@ -8,6 +8,8 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-23
+
 ### Breaking
 
 `line_svg`, `line_png`, `bar_svg` and `bar_png` now check every colour before drawing and return a `Result`. Before, SVG output wrote any colour string as given while PNG output drew a colour it could not read black, transparent or as a tint of the line, so one theme could mean two different charts.
