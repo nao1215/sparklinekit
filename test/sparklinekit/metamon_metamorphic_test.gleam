@@ -87,10 +87,7 @@ fn line_outputs(values: List(Int), styled: Bool) -> #(String, BitArray) {
       )
   }
   let options = sparklinekit.LineOptions(..options, width: 60, height: 16)
-  #(
-    render.line_svg(values, options),
-    render.line_png(values, options),
-  )
+  #(render.line_svg(values, options), render.line_png(values, options))
 }
 
 fn bar_outputs(values: List(Int)) -> #(String, BitArray) {
@@ -102,10 +99,7 @@ fn bar_outputs(values: List(Int)) -> #(String, BitArray) {
       height: 16,
       theme: sparklinekit.sunset,
     )
-  #(
-    render.bar_svg(values, options),
-    render.bar_png(values, options),
-  )
+  #(render.bar_svg(values, options), render.bar_png(values, options))
 }
 
 pub fn line_ignores_positive_scale_test() -> Nil {

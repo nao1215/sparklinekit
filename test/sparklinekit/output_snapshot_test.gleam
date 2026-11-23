@@ -12,6 +12,7 @@ import birdie
 import gleam/bit_array
 import gleam/int
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
 import gleeunit/should
 import render
@@ -56,6 +57,24 @@ fn signed_line() -> sparklinekit.LineOptions {
   )
 }
 
+// Big enough, with a thin line, for the area on both sides of zero to show:
+// the SVG gradient and the PNG pixels fade towards zero from both ends.
+fn mixed_line() -> sparklinekit.LineOptions {
+  sparklinekit.LineOptions(
+    ..sparklinekit.default_line_options,
+    width: 48,
+    height: 24,
+    theme: sparklinekit.Theme(
+      foreground: "#336699",
+      background: "#ffffff",
+      area: Some("#336699cc"),
+      negative: "#000000",
+    ),
+    stroke_width: 1.0,
+    area: sparklinekit.GradientArea,
+  )
+}
+
 fn plain_bar() -> sparklinekit.BarOptions {
   sparklinekit.BarOptions(
     ..sparklinekit.default_bar_options,
@@ -81,6 +100,8 @@ pub fn line_svg_snapshots_test() -> Nil {
   |> birdie.snap(title: "line svg, styled")
   render.line_svg(signed, signed_line())
   |> birdie.snap(title: "line svg, signed area")
+  render.line_svg(signed, mixed_line())
+  |> birdie.snap(title: "line svg, mixed gradient")
 }
 
 pub fn bar_svg_snapshots_test() -> Nil {
@@ -100,6 +121,9 @@ pub fn line_png_snapshots_test() -> Nil {
   render.line_png(signed, signed_line())
   |> pixels
   |> birdie.snap(title: "line png, signed area")
+  render.line_png(signed, mixed_line())
+  |> pixels
+  |> birdie.snap(title: "line png, mixed gradient")
 }
 
 pub fn bar_png_snapshots_test() -> Nil {
@@ -113,7 +137,7 @@ pub fn bar_png_snapshots_test() -> Nil {
 
 // --- independent PNG reader ---------------------------------------------
 
-fn pixels(png: BitArray) -> String {
+pub fn pixels(png: BitArray) -> String {
   let assert <<0x89, "PNG":utf8, 0x0D, 0x0A, 0x1A, 0x0A, rest:bytes>> = png
   let chunks = read_chunks(rest, [])
   let assert [#("IHDR", ihdr), ..] = chunks

@@ -14,8 +14,7 @@ import sparklinekit
 // positives.
 
 pub fn bug2_bar_default_theme_negative_colour_is_used_test() {
-  let svg =
-    render.bar_svg([3.0, -2.0, 5.0], sparklinekit.default_bar_options)
+  let svg = render.bar_svg([3.0, -2.0, 5.0], sparklinekit.default_bar_options)
   string.contains(svg, "fill=\"#EF4444\"")
   |> should.be_true
 }
@@ -58,10 +57,7 @@ pub fn bug5_line_extreme_float_svg_has_no_non_finite_coordinates_test() {
   let huge = 1.0e308
   let neg_huge = 0.0 -. 1.0e308
   let svg =
-    render.line_svg(
-      [neg_huge, 0.0, huge],
-      sparklinekit.default_line_options,
-    )
+    render.line_svg([neg_huge, 0.0, huge], sparklinekit.default_line_options)
   string.contains(svg, "NaN") |> should.be_false
   string.contains(svg, "Infinity") |> should.be_false
   string.contains(svg, "inf") |> should.be_false

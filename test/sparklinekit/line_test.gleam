@@ -1,8 +1,11 @@
+import gleam/int
+import gleam/list
 import gleam/option
 import gleam/string
 import gleeunit/should
 import render
 import sparklinekit
+import sparklinekit/output_snapshot_test
 
 pub fn empty_input_produces_svg_without_path_test() {
   let svg = render.line_svg([], sparklinekit.default_line_options)
@@ -16,8 +19,7 @@ pub fn empty_input_produces_svg_without_path_test() {
 }
 
 pub fn default_dimensions_are_240_by_60_test() {
-  let svg =
-    render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   svg
   |> string.contains("viewBox=\"0 0 240 60\"")
   |> should.be_true
@@ -39,8 +41,7 @@ pub fn size_is_reflected_in_viewbox_test() {
 }
 
 pub fn default_stroke_is_currentcolor_test() {
-  let svg =
-    render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   svg
   |> string.contains("stroke=\"currentColor\"")
   |> should.be_true
@@ -79,10 +80,7 @@ pub fn stroke_width_sets_stroke_width_attribute_test() {
 
 pub fn output_includes_path_element_test() {
   let svg =
-    render.line_svg(
-      [1.0, 3.0, 2.0, 5.0],
-      sparklinekit.default_line_options,
-    )
+    render.line_svg([1.0, 3.0, 2.0, 5.0], sparklinekit.default_line_options)
   svg
   |> string.contains("<path")
   |> should.be_true
@@ -96,8 +94,7 @@ pub fn output_uses_preserve_aspect_ratio_none_test() {
 }
 
 pub fn output_opens_and_closes_svg_test() {
-  let svg =
-    render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   string.starts_with(svg, "<svg")
   |> should.be_true
 
@@ -115,8 +112,7 @@ pub fn single_value_draws_horizontal_segment_at_midpoint_test() {
 }
 
 pub fn all_equal_values_draw_at_midpoint_test() {
-  let svg =
-    render.line_svg([5.0, 5.0, 5.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([5.0, 5.0, 5.0], sparklinekit.default_line_options)
   // All points share y=30.0 (midpoint of default height 60).
   svg
   |> string.contains("30.0")
@@ -167,8 +163,7 @@ pub fn theme_paints_background_rectangle_test() {
 }
 
 pub fn default_theme_omits_background_rectangle_test() {
-  let svg =
-    render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   svg
   |> string.contains("<rect")
   |> should.be_false
@@ -190,8 +185,7 @@ pub fn area_fill_adds_filled_path_test() {
 }
 
 pub fn area_fill_off_by_default_test() {
-  let svg =
-    render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   svg
   |> string.contains("<linearGradient")
   |> should.be_false
@@ -231,10 +225,7 @@ pub fn smoothing_emits_cubic_bezier_test() {
 
 pub fn no_smoothing_emits_linear_segments_test() {
   let svg =
-    render.line_svg(
-      [1.0, 2.0, 3.0, 4.0],
-      sparklinekit.default_line_options,
-    )
+    render.line_svg([1.0, 2.0, 3.0, 4.0], sparklinekit.default_line_options)
   svg
   |> string.contains(" C ")
   |> should.be_false
@@ -255,8 +246,7 @@ pub fn spot_adds_end_circle_test() {
 }
 
 pub fn spot_off_by_default_test() {
-  let svg =
-    render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
+  let svg = render.line_svg([1.0, 2.0, 3.0], sparklinekit.default_line_options)
   svg
   |> string.contains("<circle")
   |> should.be_false
@@ -476,3 +466,85 @@ pub fn single_negative_value_fills_up_to_the_top_test() {
   assert one == two
 }
 
+fn mixed_options() -> sparklinekit.LineOptions {
+  sparklinekit.LineOptions(
+    ..sparklinekit.default_line_options,
+    theme: sparklinekit.ocean,
+    area: sparklinekit.GradientArea,
+  )
+}
+
+// With values on both sides of zero, the SVG gradient ran from the top to
+// the bottom of the whole area, so the part below zero was faint at the
+// line and strongest at zero. Each side now fades towards zero.
+pub fn mixed_gradient_fades_towards_zero_on_both_sides_test() {
+  // 240 by 60: the line spans y 1 to 59 and zero is at y 30, half way.
+  let svg = render.line_svg([-1.0, 1.0], mixed_options())
+  assert string.contains(
+    svg,
+    "<stop offset=\"0%\" stop-color=\"#2563eb33\"/><stop offset=\"50.0%\" stop-color=\"#2563eb00\"/><stop offset=\"100%\" stop-color=\"#2563eb33\"/>",
+  )
+}
+
+pub fn mixed_gradient_stop_follows_the_level_of_zero_test() {
+  // Zero is a quarter of the way up from the lowest value.
+  let svg = render.line_svg([-1.0, 3.0], mixed_options())
+  assert string.contains(
+    svg,
+    "<stop offset=\"75.0%\" stop-color=\"#2563eb00\"/>",
+  )
+}
+
+pub fn mixed_gradients_with_different_zero_levels_get_different_ids_test() {
+  let a = extract_gradient_id(render.line_svg([-1.0, 1.0], mixed_options()))
+  let b = extract_gradient_id(render.line_svg([-1.0, 3.0], mixed_options()))
+  assert a != ""
+  assert a != b
+}
+
+// PNG output shades the area by height alone, as the SVG gradient does:
+// every area pixel in a row has the same opacity, whatever the height of
+// the line in its column. It used to shade each column from the line to
+// the baseline.
+pub fn png_gradient_depends_on_height_only_test() {
+  let options =
+    sparklinekit.LineOptions(
+      ..sparklinekit.default_line_options,
+      width: 40,
+      height: 30,
+      theme: sparklinekit.Theme(
+        foreground: "#00000000",
+        background: "none",
+        area: option.Some("#ff0000"),
+        negative: "#000000",
+      ),
+      area: sparklinekit.GradientArea,
+    )
+  let rows = alpha_rows(render.line_png([3.0, 1.0, -1.0, -3.0, 2.0], options))
+  list.each(rows, fn(row) {
+    let alphas = list.filter(row, fn(a) { a > 0 }) |> list.unique
+    assert list.length(alphas) <= 1
+  })
+  // Both sides are strongest at their far edge and fade towards zero.
+  let peaks =
+    list.map(rows, fn(row) { list.fold(row, 0, int.max) })
+    |> list.filter(fn(peak) { peak > 0 })
+  let assert [first, ..] = peaks
+  let assert Ok(last) = list.last(peaks)
+  assert first > 200
+  assert last > 200
+  let assert Ok(lowest) = list.reduce(peaks, int.min)
+  assert lowest < 20
+}
+
+fn alpha_rows(png: BitArray) -> List(List(Int)) {
+  output_snapshot_test.pixels(png)
+  |> string.split("\n")
+  |> list.map(fn(row) {
+    string.split(row, " ")
+    |> list.map(fn(pixel) {
+      let assert Ok(alpha) = int.base_parse(string.slice(pixel, 6, 2), 16)
+      alpha
+    })
+  })
+}

@@ -235,14 +235,12 @@ pub fn bar_single_value_renders_half_height_test() {
 }
 
 pub fn bar_all_equal_values_render_half_height_test() {
-  let svg =
-    render.bar_svg([5.0, 5.0, 5.0], sparklinekit.default_bar_options)
+  let svg = render.bar_svg([5.0, 5.0, 5.0], sparklinekit.default_bar_options)
   string.contains(svg, "<rect") |> should.be_true
 }
 
 pub fn bar_all_zero_values_do_not_crash_test() {
-  let svg =
-    render.bar_svg([0.0, 0.0, 0.0], sparklinekit.default_bar_options)
+  let svg = render.bar_svg([0.0, 0.0, 0.0], sparklinekit.default_bar_options)
   string.starts_with(svg, "<svg") |> should.be_true
   string.ends_with(svg, "</svg>") |> should.be_true
 }

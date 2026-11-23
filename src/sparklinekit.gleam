@@ -505,26 +505,54 @@ fn area_baseline(values: List(Float), options: LineOptions) -> Float {
   }
 }
 
-// How the gradient area is shaded. `upward` is set when the area lies
-// above the line, so the gradient runs from the bottom up.
+// The vertical extent of the area, which is where SVG puts a gradient
+// with the default `objectBoundingBox` units, and the y of its baseline.
+// SVG and PNG shade the area from these alone, so both draw the same
+// opacity at the same height.
 type AreaGradient {
-  AreaGradient(baseline: Float, upward: Bool)
+  AreaGradient(top: Float, bottom: Float, baseline: Float)
 }
 
 fn area_gradient(
-  _points: List(#(Float, Float)),
+  points: List(#(Float, Float)),
   values: List(Float),
   options: LineOptions,
 ) -> AreaGradient {
-  let #(lo, hi) = scale.min_max(values)
+  let baseline = area_baseline(values, options)
+  let ys = list.map(points, fn(point) { point.1 })
   AreaGradient(
-    baseline: area_baseline(values, options),
-    upward: lo <. 0.0 && hi <=. 0.0,
+    top: list.fold(ys, baseline, float.min),
+    bottom: list.fold(ys, baseline, float.max),
+    baseline:,
   )
 }
 
-// The id includes the size, the value count and the colour, so several
-// charts inlined into one page do not share a gradient by accident.
+// Where zero lies in the area, from 0.0 at its top to 1.0 at its bottom.
+fn zero_offset(gradient: AreaGradient) -> Float {
+  let AreaGradient(top:, bottom:, baseline:) = gradient
+  case bottom -. top >. 0.0 {
+    True -> float.clamp({ baseline -. top } /. { bottom -. top }, 0.0, 1.0)
+    False -> 1.0
+  }
+}
+
+// The opacity of the gradient at height `y`: 1.0 at the far edge of the
+// area on either side of the baseline, 0.0 at the baseline.
+fn gradient_factor(gradient: AreaGradient, y: Float) -> Float {
+  let AreaGradient(top:, bottom:, baseline:) = gradient
+  let #(distance, extent) = case y <. baseline {
+    True -> #(baseline -. y, baseline -. top)
+    False -> #(y -. baseline, bottom -. baseline)
+  }
+  case extent >. 0.0 {
+    True -> float.clamp(distance /. extent, 0.0, 1.0)
+    False -> 0.0
+  }
+}
+
+// The id includes the size, the value count, the colour and the level of
+// zero, so several charts inlined into one page do not share a gradient by
+// accident.
 fn gradient_id(
   fill: color.Paint,
   gradient: AreaGradient,
@@ -539,9 +567,10 @@ fn gradient_id(
   <> int.to_string(list.length(values))
   <> "-"
   <> paint_token(fill)
-  <> case gradient.upward {
-    True -> "-up"
-    False -> ""
+  <> case zero_offset(gradient) {
+    z if z >=. 1.0 -> ""
+    z if z <=. 0.0 -> "-up"
+    z -> "-z" <> format.coord(z *. 100.0)
   }
 }
 
@@ -554,23 +583,38 @@ fn paint_token(paint: color.Paint) -> String {
   }
 }
 
+// An area below the line fades downwards to the baseline, an area above
+// it fades upwards, and an area on both sides of zero fades towards zero
+// from both ends.
 fn gradient_defs(
   id: String,
   fill: color.Paint,
   gradient: AreaGradient,
 ) -> StringTree {
-  let direction = case gradient.upward {
-    True -> "\" x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\">"
-    False -> "\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">"
+  let #(direction, stops) = case zero_offset(gradient) {
+    z if z >=. 1.0 -> #("x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"", [
+      gradient_stop("0%", fill, True),
+      gradient_stop("100%", fill, False),
+    ])
+    z if z <=. 0.0 -> #("x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\"", [
+      gradient_stop("0%", fill, True),
+      gradient_stop("100%", fill, False),
+    ])
+    z -> #("x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"", [
+      gradient_stop("0%", fill, True),
+      gradient_stop(format.coord(z *. 100.0) <> "%", fill, False),
+      gradient_stop("100%", fill, True),
+    ])
   }
   string_tree.from_strings([
     "<defs><linearGradient id=\"",
     id,
+    "\" ",
     direction,
-    gradient_stop("0%", fill, True),
-    gradient_stop("100%", fill, False),
-    "</linearGradient></defs>",
+    ">",
+    ..stops
   ])
+  |> string_tree.append("</linearGradient></defs>")
 }
 
 fn gradient_stop(offset: String, fill: color.Paint, solid: Bool) -> String {
@@ -754,7 +798,12 @@ fn fill_area(
   shaded: Bool,
 ) -> raster.Canvas {
   let baseline = float.clamp(gradient.baseline, min: 0.0, max: height)
-  let transparent = color.with_alpha(fill, factor: 0.0)
+  let colour_at = case shaded {
+    True -> fn(y) {
+      color.with_alpha(fill, factor: gradient_factor(gradient, y))
+    }
+    False -> fn(_) { fill }
+  }
   use canvas, #(#(x0, y0), #(x1, y1)) <- list.fold(
     list.window_by_2(path),
     canvas,
@@ -767,26 +816,7 @@ fn fill_area(
   let line_y =
     { y0 +. { y1 -. y0 } *. { x -. x0 } /. { x1 -. x0 } }
     |> float.clamp(min: 0.0, max: height)
-  // The gradient is strongest at the line, whichever side of the baseline
-  // the line is on.
-  let #(top, bottom, top_colour, bottom_colour) = case line_y <=. baseline {
-    True -> #(line_y, baseline, fill, transparent)
-    False -> #(baseline, line_y, transparent, fill)
-  }
-  case bottom -. top >. 0.0, shaded {
-    False, _ -> canvas
-    True, False -> raster.fill_rect(canvas, x, top, 1.0, bottom -. top, fill)
-    True, True ->
-      raster.fill_vertical_gradient(
-        canvas,
-        x,
-        top,
-        x +. 1.0,
-        bottom,
-        top_colour,
-        bottom_colour,
-      )
-  }
+  raster.fill_column(canvas, column, line_y, baseline, colour_at)
 }
 
 fn draw_stroke(
@@ -1111,7 +1141,10 @@ fn check_theme(theme: Theme) -> Result(Palette, InvalidColor) {
   Palette(foreground:, background:, area:, negative:)
 }
 
-fn check_colour(field: String, value: String) -> Result(color.Paint, InvalidColor) {
+fn check_colour(
+  field: String,
+  value: String,
+) -> Result(color.Paint, InvalidColor) {
   color.parse_paint(value)
   |> result.replace_error(InvalidColor(field:, value:))
 }

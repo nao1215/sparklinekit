@@ -171,7 +171,10 @@ pub fn none_draws_nothing_in_both_formats_test() {
       negative: "none",
     ))
   let empty_line =
-    render.line_png([], sparklinekit.LineOptions(..blank_line, spot_radius: 0.0))
+    render.line_png(
+      [],
+      sparklinekit.LineOptions(..blank_line, spot_radius: 0.0),
+    )
   assert render.line_png(values, blank_line) == empty_line
   assert render.bar_png(values, blank_bar) == render.bar_png([], blank_bar)
   let svg = render.line_svg(values, blank_line)
@@ -194,11 +197,9 @@ pub fn current_colour_gradient_fades_in_svg_test() {
 
 pub fn current_colour_is_black_in_png_test() {
   let current =
-    sparklinekit.Theme(
-      ..sparklinekit.default_theme,
-      foreground: "currentColor",
-    )
-  let black = sparklinekit.Theme(..sparklinekit.default_theme, foreground: "#000")
+    sparklinekit.Theme(..sparklinekit.default_theme, foreground: "currentColor")
+  let black =
+    sparklinekit.Theme(..sparklinekit.default_theme, foreground: "#000")
   assert render.line_png(values, line(current))
     == render.line_png(values, line(black))
   assert render.bar_png(values, bar(current))

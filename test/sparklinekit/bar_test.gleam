@@ -17,17 +17,13 @@ pub fn empty_input_produces_svg_without_rects_test() {
 
 pub fn output_contains_one_rect_per_value_test() {
   let svg =
-    render.bar_svg(
-      [1.0, 2.0, 3.0, 4.0, 5.0],
-      sparklinekit.default_bar_options,
-    )
+    render.bar_svg([1.0, 2.0, 3.0, 4.0, 5.0], sparklinekit.default_bar_options)
   rect_count(svg)
   |> should.equal(5)
 }
 
 pub fn default_dimensions_are_200_by_40_test() {
-  let svg =
-    render.bar_svg([1.0, 2.0, 3.0], sparklinekit.default_bar_options)
+  let svg = render.bar_svg([1.0, 2.0, 3.0], sparklinekit.default_bar_options)
   svg
   |> string.contains("viewBox=\"0 0 200 40\"")
   |> should.be_true
@@ -75,8 +71,7 @@ pub fn color_sets_fill_attribute_test() {
 pub fn all_positive_values_render_above_baseline_test() {
   // All bars start at the bottom (y=baseline=40) and extend upward,
   // so every rect has y < 40 once it has any height.
-  let svg =
-    render.bar_svg([1.0, 2.0, 3.0], sparklinekit.default_bar_options)
+  let svg = render.bar_svg([1.0, 2.0, 3.0], sparklinekit.default_bar_options)
   rect_count(svg)
   |> should.equal(3)
 
@@ -88,10 +83,7 @@ pub fn all_positive_values_render_above_baseline_test() {
 
 pub fn mixed_values_split_around_zero_line_test() {
   let svg =
-    render.bar_svg(
-      [3.0, -2.0, 5.0, -4.0],
-      sparklinekit.default_bar_options,
-    )
+    render.bar_svg([3.0, -2.0, 5.0, -4.0], sparklinekit.default_bar_options)
   // We should see four rects, some above and some below the zero line.
   rect_count(svg)
   |> should.equal(4)
@@ -191,8 +183,7 @@ pub fn corner_radius_emits_rx_attribute_test() {
 }
 
 pub fn corner_radius_zero_omits_rx_attribute_test() {
-  let svg =
-    render.bar_svg([1.0, 2.0, 3.0], sparklinekit.default_bar_options)
+  let svg = render.bar_svg([1.0, 2.0, 3.0], sparklinekit.default_bar_options)
   svg
   |> string.contains("rx=\"")
   |> should.be_false
@@ -299,7 +290,6 @@ fn rect_count(svg: String) -> Int {
 pub fn constant_negative_bars_hang_from_the_top_test() {
   let svg = render.bar_svg([-3.0, -3.0], sparklinekit.default_bar_options)
   assert string.contains(svg, "y=\"0.0\" width=\"99.0\" height=\"20.0\"")
-  let positive =
-    render.bar_svg([3.0, 3.0], sparklinekit.default_bar_options)
+  let positive = render.bar_svg([3.0, 3.0], sparklinekit.default_bar_options)
   assert string.contains(positive, "y=\"20.0\" width=\"99.0\" height=\"20.0\"")
 }

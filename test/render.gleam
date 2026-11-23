@@ -4,7 +4,10 @@
 
 import sparklinekit
 
-pub fn line_svg(values: List(Float), options: sparklinekit.LineOptions) -> String {
+pub fn line_svg(
+  values: List(Float),
+  options: sparklinekit.LineOptions,
+) -> String {
   let assert Ok(svg) = sparklinekit.line_svg(values, options)
   svg
 }
@@ -17,12 +20,18 @@ pub fn line_png(
   png
 }
 
-pub fn bar_svg(values: List(Float), options: sparklinekit.BarOptions) -> String {
+pub fn bar_svg(
+  values: List(Float),
+  options: sparklinekit.BarOptions,
+) -> String {
   let assert Ok(svg) = sparklinekit.bar_svg(values, options)
   svg
 }
 
-pub fn bar_png(values: List(Float), options: sparklinekit.BarOptions) -> BitArray {
+pub fn bar_png(
+  values: List(Float),
+  options: sparklinekit.BarOptions,
+) -> BitArray {
   let assert Ok(png) = sparklinekit.bar_png(values, options)
   png
 }

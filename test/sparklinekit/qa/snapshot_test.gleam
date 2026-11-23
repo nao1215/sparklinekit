@@ -74,10 +74,7 @@ pub fn snapshot_area_line_emits_linear_gradient_test() {
 
 pub fn snapshot_minimal_bar_attributes_test() {
   let svg =
-    render.bar_svg(
-      [3.0, 7.0, 2.0, 9.0, 5.0],
-      sparklinekit.default_bar_options,
-    )
+    render.bar_svg([3.0, 7.0, 2.0, 9.0, 5.0], sparklinekit.default_bar_options)
   string.contains(svg, "viewBox=\"0 0 200 40\"") |> should.be_true
   string.contains(svg, "width=\"200\"") |> should.be_true
   string.contains(svg, "height=\"40\"") |> should.be_true

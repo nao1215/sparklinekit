@@ -1,0 +1,7 @@
+---
+version: 2.0.2
+title: line svg, mixed gradient
+file: ./test/sparklinekit/output_snapshot_test.gleam
+test_name: line_svg_snapshots_test
+---
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="24" viewBox="0 0 48 24" preserveAspectRatio="none"><defs><linearGradient id="sparklinekit-area-48x24-8-336699cc-z45.45" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#336699cc"/><stop offset="45.45%" stop-color="#33669900"/><stop offset="100%" stop-color="#336699cc"/></linearGradient></defs><rect x="0" y="0" width="48" height="24" fill="#ffffff"/><path fill="url(#sparklinekit-area-48x24-8-336699cc-z45.45)" stroke="none" d="M 1.0 19.0 L 7.57 7.0 L 14.14 1.0 L 20.71 13.0 L 27.29 11.0 L 33.86 5.0 L 40.43 23.0 L 47.0 9.0 L 47.0 11.0 L 1.0 11.0 Z"/><path fill="none" stroke="#336699" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round" d="M 1.0 19.0 L 7.57 7.0 L 14.14 1.0 L 20.71 13.0 L 27.29 11.0 L 33.86 5.0 L 40.43 23.0 L 47.0 9.0"/></svg>

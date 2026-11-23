@@ -79,7 +79,8 @@ pub fn save_chart_test() {
 
 pub fn empty_series_test() {
   assert sparklinekit.blocks([]) == ""
-  let assert Ok(svg) = sparklinekit.bar_svg([], sparklinekit.default_bar_options)
+  let assert Ok(svg) =
+    sparklinekit.bar_svg([], sparklinekit.default_bar_options)
   assert !string.contains(svg, "<rect")
 }
 
