@@ -6,7 +6,8 @@
 //// - Negating the series turns a line chart upside down, and turns a bar
 ////   chart upside down with the positive and negative colours swapped.
 //// - A PNG bar chart has the colour of each SVG bar at the centre of the
-////   bar.
+////   bar, and each pixel is covered by the same share of the SVG bars as
+////   a browser draws at 100% zoom.
 ////
 //// SVG coordinates are written with two decimals, so mirrored coordinates
 //// are compared to within 0.02.
@@ -264,4 +265,96 @@ fn pixel_at(row: Result(List(String), Nil), x: Int) -> String {
       }
     Error(_) -> ""
   }
+}
+
+fn coverage_options(width: Int, gap: Float) -> sparklinekit.BarOptions {
+  sparklinekit.BarOptions(..bar_options(gap), width:)
+}
+
+// The share of the pixel `[cell, cell + 1]` that `[from, to]` covers.
+fn overlap(cell: Int, from: Float, to: Float) -> Float {
+  let cell = int.to_float(cell)
+  float.max(float.min(cell +. 1.0, to) -. float.max(cell, from), 0.0)
+}
+
+// The alpha byte of every pixel, row by row.
+fn png_alphas(png: BitArray) -> List(List(Int)) {
+  output_snapshot_test.pixels(png)
+  |> string.split("\n")
+  |> list.map(fn(row) {
+    string.split(row, " ")
+    |> list.map(fn(pixel) {
+      case int.base_parse(string.drop_start(pixel, 6), 16) {
+        Ok(alpha) -> alpha
+        Error(_) -> -1
+      }
+    })
+  })
+}
+
+// The alpha byte a browser gives each pixel for these SVG bars drawn over
+// nothing: the area of the pixel the bars cover.
+fn svg_alphas(svg_bars: List(Bar), width: Int) -> List(List(Int)) {
+  use row <- list.map(int_range(0, height))
+  use column <- list.map(int_range(0, width))
+  let covered =
+    list.fold(svg_bars, 0.0, fn(sum, bar) {
+      sum
+      +. overlap(column, bar.x, bar.x +. bar.width)
+      *. overlap(row, bar.y, bar.y +. bar.height)
+    })
+  float.round(float.min(covered, 1.0) *. 255.0)
+}
+
+fn int_range(from: Int, to: Int) -> List(Int) {
+  int.range(from:, to:, with: [], run: fn(acc, value) { [value, ..acc] })
+  |> list.reverse
+}
+
+fn same_alphas(png: List(List(Int)), svg: List(List(Int))) -> Bool {
+  list.length(png) == list.length(svg)
+  && list.all(list.zip(png, svg), fn(rows) {
+    list.length(rows.0) == list.length(rows.1)
+    && list.all(list.zip(rows.0, rows.1), fn(pair) {
+      // The SVG coordinates are rounded to two decimals, so an edge read
+      // back from them can be up to 0.01 pixel off in each direction.
+      int.absolute_value(pair.0 - pair.1) <= 6
+    })
+  })
+}
+
+// Bars are at least a pixel apart, so no pixel is shared by two bars, and
+// each share of the width is a whole number of pixels or a fraction of
+// one, so bar edges fall on whole pixels, half pixels and elsewhere.
+pub fn png_bars_cover_the_pixels_the_svg_bars_cover_test() -> Nil {
+  metamon.forall(
+    generator.tuple4(
+      series_gen(),
+      generator.int(range.constant(4, 8)),
+      generator.int(range.constant(0, 19)),
+      generator.int(range.constant(1, 3)),
+    ),
+    fn(input) {
+      let #(values, share, extra, gap) = input
+      let width = list.length(values) * share + extra
+      let options = coverage_options(width, int.to_float(gap))
+      let svg = bars(render.bar_svg(floats(values), options))
+      same_alphas(
+        png_alphas(render.bar_png(floats(values), options)),
+        svg_alphas(svg, width),
+      )
+    },
+  )
+}
+
+// Two 19-pixel bars in a 40-pixel chart with a gap of 1 have every edge on
+// a half pixel: 0.5 to 19.5 and 20.5 to 39.5.
+pub fn png_bar_edges_on_half_pixels_test() {
+  let assert [row, ..] =
+    render.bar_png([5.0, 5.0], coverage_options(40, 1.0))
+    |> png_alphas
+    |> list.drop(height - 1)
+  let half = 128
+  let bar = [half, ..list.repeat(255, 18)]
+  assert row == list.flatten([bar, [half], bar, [half]])
 }

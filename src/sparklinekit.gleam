@@ -817,19 +817,67 @@ fn fill_area(
     }
     False -> fn(_) { fill }
   }
-  use canvas, #(#(x0, y0), #(x1, y1)) <- list.fold(
-    list.window_by_2(path),
-    canvas,
-  )
-  use canvas, column <- list.fold(
-    raster.range(float.round(x0), float.round(x1) - 1),
-    canvas,
-  )
-  let x = int.to_float(column)
-  let line_y =
-    { y0 +. { y1 -. y0 } *. { x -. x0 } /. { x1 -. x0 } }
-    |> float.clamp(min: 0.0, max: height)
-  raster.fill_column(canvas, column, line_y, baseline, colour_at)
+  case path, list.last(path) {
+    [#(first_x, _), ..], Ok(#(last_x, _)) -> {
+      let columns =
+        raster.range(
+          int.max(float.truncate(float.floor(first_x)), 0),
+          float.truncate(float.ceiling(last_x)) - 1,
+        )
+      fill_area_columns(
+        canvas,
+        list.window_by_2(path),
+        columns,
+        first_x,
+        last_x,
+        fn(canvas, column, line_y) {
+          // A column the area only partly covers, at either end, is
+          // shaded by the share it covers.
+          let coverage = raster.overlap(column, first_x, last_x)
+          let line_y = float.clamp(line_y, min: 0.0, max: height)
+          raster.fill_column(canvas, column, line_y, baseline, fn(y) {
+            color.with_alpha(colour_at(y), factor: coverage)
+          })
+        },
+      )
+    }
+    _, _ -> canvas
+  }
+}
+
+// Calls `fill` with each column and the height of the path at the centre
+// of the column, or at the nearer end of the path for a column the path
+// does not reach the centre of. Both lists are in increasing x.
+fn fill_area_columns(
+  canvas: raster.Canvas,
+  segments: List(#(#(Float, Float), #(Float, Float))),
+  columns: List(Int),
+  first_x: Float,
+  last_x: Float,
+  fill: fn(raster.Canvas, Int, Float) -> raster.Canvas,
+) -> raster.Canvas {
+  case columns, segments {
+    [], _ | _, [] -> canvas
+    [column, ..rest], [#(#(x0, y0), #(x1, y1)), ..later] -> {
+      let x =
+        float.clamp(int.to_float(column) +. 0.5, min: first_x, max: last_x)
+      case x >. x1 && later != [] {
+        True -> fill_area_columns(canvas, later, columns, first_x, last_x, fill)
+        False ->
+          fill(canvas, column, y_on_segment(#(x0, y0), #(x1, y1), x))
+          |> fill_area_columns(segments, rest, first_x, last_x, fill)
+      }
+    }
+  }
+}
+
+fn y_on_segment(from: #(Float, Float), to: #(Float, Float), x: Float) -> Float {
+  let #(x0, y0) = from
+  let #(x1, y1) = to
+  case x1 -. x0 >. 0.0 {
+    True -> y0 +. { y1 -. y0 } *. { x -. x0 } /. { x1 -. x0 }
+    False -> y1
+  }
 }
 
 fn draw_stroke(
@@ -948,9 +996,11 @@ pub fn bar_svg(
   ])
 }
 
-/// Draws the same chart as `bar_svg` as 8-bit RGBA PNG bytes. The image is
-/// not compressed, so it is about `width * height * 4` bytes. A colour that
-/// `Theme` does not accept gives `Error(InvalidColor(..))`.
+/// Draws the same chart as `bar_svg` as 8-bit RGBA PNG bytes. A pixel that
+/// a bar only partly covers, such as one under an edge on a half pixel, is
+/// shaded by the share it covers, as a browser draws the SVG at 100% zoom.
+/// The image is not compressed, so it is about `width * height * 4` bytes.
+/// A colour that `Theme` does not accept gives `Error(InvalidColor(..))`.
 ///
 pub fn bar_png(
   values: List(Float),

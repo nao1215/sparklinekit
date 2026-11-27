@@ -53,8 +53,10 @@ fn put(canvas: Canvas, x: Int, y: Int, colour: Rgba) -> Canvas {
   }
 }
 
-/// Fill a rounded-corner rectangle with `radius` user units of
-/// corner radius. The radius is clamped to half the smaller side.
+/// Fill a rectangle with corners rounded by `radius`, which is clamped to
+/// half the smaller side, as SVG draws a `<rect>` with that `rx`. Each
+/// pixel takes `colour` at the share of its area the shape covers, so an
+/// edge between two pixels, such as one on a half pixel, shades both.
 pub fn fill_rounded_rect(
   canvas: Canvas,
   x: Float,
@@ -64,22 +66,94 @@ pub fn fill_rounded_rect(
   radius: Float,
   colour: Rgba,
 ) -> Canvas {
-  let x0 = float.round(x)
-  let y0 = float.round(y)
-  let x1 = float.round(x +. width)
-  let y1 = float.round(y +. height)
-  let w = x1 - x0
-  let h = y1 - y0
-  let r =
-    radius
-    |> float.min(int.to_float(w) /. 2.0)
-    |> float.min(int.to_float(h) /. 2.0)
-    |> float.max(0.0)
-  let r_int = float.round(r)
-  case r_int <= 0 {
-    True -> fill_rect_int(canvas, x0, y0, x1, y1, colour)
-    False -> rounded_rect_rows(canvas, x0, y0, x1, y1, r_int, colour)
+  let shape =
+    Shape(
+      left: x,
+      top: y,
+      right: x +. width,
+      bottom: y +. height,
+      radius: radius
+        |> float.min(width /. 2.0)
+        |> float.min(height /. 2.0)
+        |> float.max(0.0),
+    )
+  let columns = covered_cells(shape.left, shape.right, canvas.width)
+  use canvas, row <- list.fold(
+    covered_cells(shape.top, shape.bottom, canvas.height),
+    canvas,
+  )
+  use canvas, column <- list.fold(columns, canvas)
+  let coverage = shape_coverage(shape, column, row)
+  case coverage >. 0.0 {
+    True -> put(canvas, column, row, color.with_alpha(colour, factor: coverage))
+    False -> canvas
   }
+}
+
+/// The share of the pixel `[cell, cell + 1]` that `[from, to]` covers, in
+/// one direction.
+pub fn overlap(cell: Int, from: Float, to: Float) -> Float {
+  let cell = int.to_float(cell)
+  float.max(float.min(cell +. 1.0, to) -. float.max(cell, from), 0.0)
+}
+
+// The cells from `from` to `to` that are inside `0..size`.
+fn covered_cells(from: Float, to: Float, size: Int) -> List(Int) {
+  range(
+    int.max(float.truncate(float.floor(from)), 0),
+    int.min(float.truncate(float.ceiling(to)), size) - 1,
+  )
+}
+
+type Shape {
+  Shape(left: Float, top: Float, right: Float, bottom: Float, radius: Float)
+}
+
+// Pixels a rounded corner passes through are sampled on a grid of this
+// many points a side; every other pixel is covered by a rectangle, whose
+// share is exact.
+const corner_samples = 16
+
+fn shape_coverage(shape: Shape, column: Int, row: Int) -> Float {
+  let Shape(left:, top:, right:, bottom:, radius:) = shape
+  let x = int.to_float(column)
+  let y = int.to_float(row)
+  let in_corner =
+    radius >. 0.0
+    && { x <. left +. radius || x +. 1.0 >. right -. radius }
+    && { y <. top +. radius || y +. 1.0 >. bottom -. radius }
+  case in_corner {
+    False -> overlap(column, left, right) *. overlap(row, top, bottom)
+    True -> sampled_coverage(shape, x, y)
+  }
+}
+
+fn sampled_coverage(shape: Shape, x: Float, y: Float) -> Float {
+  let offsets =
+    range(0, corner_samples - 1)
+    |> list.map(fn(i) {
+      { int.to_float(i) +. 0.5 } /. int.to_float(corner_samples)
+    })
+  let inside = {
+    use count, dy <- list.fold(offsets, 0)
+    use count, dx <- list.fold(offsets, count)
+    case inside_shape(shape, x +. dx, y +. dy) {
+      True -> count + 1
+      False -> count
+    }
+  }
+  int.to_float(inside) /. int.to_float(corner_samples * corner_samples)
+}
+
+fn inside_shape(shape: Shape, x: Float, y: Float) -> Bool {
+  let Shape(left:, top:, right:, bottom:, radius:) = shape
+  let dx = x -. float.clamp(x, min: left +. radius, max: right -. radius)
+  let dy = y -. float.clamp(y, min: top +. radius, max: bottom -. radius)
+  x >=. left
+  && x <=. right
+  && y >=. top
+  && y <=. bottom
+  && dx *. dx +. dy *. dy <=. radius *. radius
 }
 
 /// Draw an anti-aliased line from `(x0, y0)` to `(x1, y1)` using
@@ -261,92 +335,6 @@ fn current_at(canvas: Canvas, x: Int, y: Int) -> Rgba {
 
 fn in_bounds(canvas: Canvas, x: Int, y: Int) -> Bool {
   x >= 0 && x < canvas.width && y >= 0 && y < canvas.height
-}
-
-fn fill_rect_int(
-  canvas: Canvas,
-  x0: Int,
-  y0: Int,
-  x1: Int,
-  y1: Int,
-  colour: Rgba,
-) -> Canvas {
-  let x_lo = int.max(0, int.min(x0, x1))
-  let x_hi = int.min(canvas.width, int.max(x0, x1))
-  let y_lo = int.max(0, int.min(y0, y1))
-  let y_hi = int.min(canvas.height, int.max(y0, y1))
-  case x_hi <= x_lo || y_hi <= y_lo {
-    True -> canvas
-    False -> {
-      let xs = range(x_lo, x_hi - 1)
-      range(y_lo, y_hi - 1)
-      |> list.fold(canvas, fn(c, y) {
-        list.fold(xs, c, fn(c2, x) { put(c2, x, y, colour) })
-      })
-    }
-  }
-}
-
-fn rounded_rect_rows(
-  canvas: Canvas,
-  x0: Int,
-  y0: Int,
-  x1: Int,
-  y1: Int,
-  r: Int,
-  colour: Rgba,
-) -> Canvas {
-  let w = x1 - x0
-  let h = y1 - y0
-  case w <= 0 || h <= 0 {
-    True -> canvas
-    False -> {
-      range(0, h - 1)
-      |> list.fold(canvas, fn(c, dy) {
-        let inset = row_inset(dy, h, r)
-        let row_x0 = x0 + inset
-        let row_x1 = x1 - inset
-        case row_x1 > row_x0 {
-          True -> fill_rect_int(c, row_x0, y0 + dy, row_x1, y0 + dy + 1, colour)
-          False -> c
-        }
-      })
-    }
-  }
-}
-
-fn row_inset(dy: Int, height: Int, radius: Int) -> Int {
-  let top_zone = dy < radius
-  let bottom_zone = dy >= height - radius
-  case top_zone, bottom_zone {
-    False, False -> 0
-    _, _ -> {
-      let local_y = case top_zone {
-        True -> radius - 1 - dy
-        False -> dy - { height - radius }
-      }
-      let r_sq = radius * radius
-      let local_y_sq = local_y * local_y
-      let max_x_sq = r_sq - local_y_sq
-      let dx = isqrt(max_x_sq)
-      radius - dx
-    }
-  }
-}
-
-fn isqrt(value: Int) -> Int {
-  case value <= 0 {
-    True -> 0
-    False -> isqrt_loop(value, value)
-  }
-}
-
-fn isqrt_loop(value: Int, guess: Int) -> Int {
-  let next = { guess + value / guess } / 2
-  case next >= guess {
-    True -> guess
-    False -> isqrt_loop(value, next)
-  }
 }
 
 fn do_wu_line(
