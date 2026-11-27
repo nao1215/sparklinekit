@@ -551,3 +551,43 @@ fn alpha_rows(png: BitArray) -> List(List(Int)) {
     })
   })
 }
+
+fn edge_area_options(spot_radius: Float) -> sparklinekit.LineOptions {
+  sparklinekit.LineOptions(
+    ..sparklinekit.default_line_options,
+    width: 20,
+    height: 10,
+    theme: sparklinekit.Theme(
+      foreground: "none",
+      background: "none",
+      area: option.Some("#000000"),
+      negative: "#000000",
+    ),
+    area: sparklinekit.SolidArea,
+    spot_radius:,
+  )
+}
+
+// A spot of radius 3.5 insets the line by 4.5, so the area runs from 4.5
+// to 15.5 and covers half of its first and last column, as the SVG does.
+pub fn png_area_ends_on_half_pixels_test() {
+  let assert Ok(bottom) =
+    alpha_rows(render.line_png([2.0, 2.0], edge_area_options(3.5)))
+    |> list.last
+  assert bottom
+    == list.flatten([
+      list.repeat(0, 4),
+      [128],
+      list.repeat(255, 10),
+      [128],
+      list.repeat(0, 4),
+    ])
+}
+
+// Each column takes the height of the line at its centre, so a rising and
+// a falling line fill mirror images of each other.
+pub fn png_area_of_a_reversed_line_is_mirrored_test() {
+  let rising = alpha_rows(render.line_png([0.0, 1.0], edge_area_options(0.0)))
+  let falling = alpha_rows(render.line_png([1.0, 0.0], edge_area_options(0.0)))
+  assert list.map(rising, list.reverse) == falling
+}

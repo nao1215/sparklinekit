@@ -10,6 +10,8 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ### Changed
 
+- `bar_png` shades each pixel by the share of it a bar covers, as a browser draws the `bar_svg` output at 100% zoom. Before, it rounded every bar edge to the nearest pixel, and since an edge on a half pixel rounded up, a bar whose edges both fell on half pixels moved one column right of the SVG. Edges on half pixels, which the default 1.0 gap gives whenever the width divides evenly by the number of bars, are now drawn as two half shaded columns, and rounded corners are anti-aliased. Edges on whole pixels draw as before.
+- `line_png` takes the height of the area in each column from the centre of the column instead of its left edge, and shades the first and last column by the share the area covers. Before, an area that started or ended on a half pixel, such as with a `spot_radius` of 3.5, began one column right of the SVG.
 - `blocks` gives each of its eight blocks an equal eighth of the range. Before, a value took the nearest of eight evenly spaced levels, so `▁` and `█` each covered a fourteenth of the range and the six blocks between covered a seventh. A value can now draw one block lower or higher than before: in `[0.0, 7.0, 0.5]` the last value is now `▁` (was `▂`), and in `[0.0, 7.0, 6.2]` it is now `█` (was `▇`). The maximum is still `█`, and a constant series is still `▄`.
 
 ## [0.7.0] - 2026-11-23
