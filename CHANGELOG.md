@@ -8,6 +8,10 @@ starting with `1.0.0`. Pre-1.0 releases may break API in minor versions.
 
 ## [Unreleased]
 
+### Changed
+
+- `blocks` gives each of its eight blocks an equal eighth of the range. Before, a value took the nearest of eight evenly spaced levels, so `▁` and `█` each covered a fourteenth of the range and the six blocks between covered a seventh. A value can now draw one block lower or higher than before: in `[0.0, 7.0, 0.5]` the last value is now `▁` (was `▂`), and in `[0.0, 7.0, 6.2]` it is now `█` (was `▇`). The maximum is still `█`, and a constant series is still `▄`.
+
 ## [0.7.0] - 2026-11-23
 
 ### Breaking

@@ -179,7 +179,8 @@ pub const midnight =
 // Unicode --------------------------------------------------------------------
 
 /// Draws `values` with the block characters `▁▂▃▄▅▆▇█`, one per value,
-/// scaled between the smallest and largest value.
+/// scaled between the smallest and largest value. Each block covers an
+/// eighth of that range, and the largest value is drawn with `█`.
 ///
 /// A single value, or a series where every value is the same, is drawn
 /// with the middle block `▄`.
@@ -203,7 +204,7 @@ pub fn blocks(values: List(Float)) -> String {
     case lo == hi {
       True -> block(3)
       False -> {
-        let level = float.round(scale.unit(value, lo, hi) *. 7.0)
+        let level = float.truncate(scale.unit(value, lo, hi) *. 8.0)
         block(int.clamp(level, min: 0, max: 7))
       }
     }

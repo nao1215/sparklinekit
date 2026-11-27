@@ -2,8 +2,12 @@
 //// of 0, 1 and below, the block levels, and PNG files big enough to need
 //// several zlib blocks.
 
+import gleam/int
 import gleam/list
 import gleam/string
+import metamon
+import metamon/generator
+import metamon/generator/range
 import render
 import sparklinekit
 import sparklinekit/output_snapshot_test
@@ -139,18 +143,96 @@ pub fn multi_block_png_decodes_test() {
   assert list.length(rows) == 120
 }
 
-// Each block covers an equal share of the range, rounded to the nearest
-// level, so the lowest and highest levels cover half a share each.
+const block_chars = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
+
+fn block_char(level: Int) -> String {
+  case list.drop(block_chars, level) {
+    [char, ..] -> char
+    [] -> ""
+  }
+}
+
+// Each of the eight blocks covers an eighth of the range, lower edge
+// included; the maximum is drawn with the top block.
 pub fn block_levels_test() {
   assert sparklinekit.blocks([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
     == "▁▂▃▄▅▆▇█"
   assert sparklinekit.blocks([7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0])
     == "█▇▆▅▄▃▂▁"
   assert sparklinekit.blocks([0.0, 1.0]) == "▁█"
-  assert sparklinekit.blocks([0.0, 7.0, 0.49]) == "▁█▁"
-  assert sparklinekit.blocks([0.0, 7.0, 0.5]) == "▁█▂"
-  assert sparklinekit.blocks([0.0, 7.0, 6.49]) == "▁█▇"
-  assert sparklinekit.blocks([0.0, 7.0, 6.5]) == "▁██"
+  assert sparklinekit.blocks([0.0, 0.5, 1.0]) == "▁▅█"
+  assert sparklinekit.blocks([0.0, 7.0, 0.5]) == "▁█▁"
+  assert sparklinekit.blocks([0.0, 7.0, 6.2]) == "▁██"
   assert sparklinekit.blocks([-1.0]) == "▄"
   assert sparklinekit.blocks([0.0, 0.0]) == "▄▄"
+}
+
+pub fn block_level_edges_test() {
+  let edges = [
+    #(0.0, "▁"),
+    #(0.999, "▁"),
+    #(1.0, "▂"),
+    #(1.999, "▂"),
+    #(2.0, "▃"),
+    #(3.999, "▄"),
+    #(4.0, "▅"),
+    #(6.0, "▇"),
+    #(6.999, "▇"),
+    #(7.0, "█"),
+    #(8.0, "█"),
+  ]
+  list.each(edges, fn(edge) {
+    assert sparklinekit.blocks([0.0, 8.0, edge.0]) == "▁█" <> edge.1
+  })
+  // The same edges where `unit` halves its operands to avoid overflow.
+  assert sparklinekit.blocks([
+      0.0 -. max_float,
+      max_float,
+      max_float /. -2.0,
+      0.0,
+      max_float /. 2.0,
+    ])
+    == "▁█▃▅▇"
+}
+
+pub fn block_level_is_the_eighth_the_value_falls_in_test() -> Nil {
+  metamon.forall(
+    generator.tuple3(
+      generator.int(range.constant(-1000, 1000)),
+      generator.int(range.constant(1, 10_000)),
+      generator.int(range.constant(0, 1_000_000)),
+    ),
+    fn(input) {
+      let #(lo, span, seed) = input
+      let offset = seed % { span + 1 }
+      let level = int.min(offset * 8 / span, 7)
+      sparklinekit.blocks(list.map([lo, lo + span, lo + offset], int.to_float))
+      == "▁█" <> block_char(level)
+    },
+  )
+}
+
+pub fn evenly_spaced_values_use_every_block_equally_test() -> Nil {
+  metamon.forall(
+    generator.tuple2(
+      generator.int(range.constant(1, 40)),
+      generator.int(range.constant(-1000, 1000)),
+    ),
+    fn(input) {
+      // The values lo, lo + 1, ..., lo + 8n: n in each eighth of the
+      // range, plus the maximum, which is drawn with the top block.
+      let #(n, lo) = input
+      let out =
+        int.range(from: lo, to: lo + 8 * n + 1, with: [], run: fn(acc, value) {
+          [int.to_float(value), ..acc]
+        })
+        |> sparklinekit.blocks
+        |> string.to_graphemes
+      let counts =
+        list.map(block_chars, fn(char) {
+          list.count(out, fn(drawn) { drawn == char })
+        })
+      counts == [n, n, n, n, n, n, n, n + 1]
+    },
+  )
 }
