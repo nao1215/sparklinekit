@@ -7,7 +7,6 @@ import gleam/list
 import gleam/string
 import metamon
 import metamon/generator
-import metamon/generator/range
 import render
 import sparklinekit
 import sparklinekit/output_snapshot_test
@@ -198,16 +197,19 @@ pub fn block_level_edges_test() {
 pub fn block_level_is_the_eighth_the_value_falls_in_test() -> Nil {
   metamon.forall(
     generator.tuple3(
-      generator.int(range.constant(-1000, 1000)),
-      generator.int(range.constant(1, 10_000)),
-      generator.int(range.constant(0, 1_000_000)),
+      generator.int(generator.range(from: -1000, to: 1000)),
+      generator.int(generator.range(from: 1, to: 10_000)),
+      generator.int(generator.range(from: 0, to: 1_000_000)),
     ),
     fn(input) {
       let #(lo, span, seed) = input
       let offset = seed % { span + 1 }
       let level = int.min(offset * 8 / span, 7)
-      sparklinekit.blocks(list.map([lo, lo + span, lo + offset], int.to_float))
-      == "▁█" <> block_char(level)
+      assert sparklinekit.blocks(list.map(
+          [lo, lo + span, lo + offset],
+          int.to_float,
+        ))
+        == "▁█" <> block_char(level)
     },
   )
 }
@@ -215,8 +217,8 @@ pub fn block_level_is_the_eighth_the_value_falls_in_test() -> Nil {
 pub fn evenly_spaced_values_use_every_block_equally_test() -> Nil {
   metamon.forall(
     generator.tuple2(
-      generator.int(range.constant(1, 40)),
-      generator.int(range.constant(-1000, 1000)),
+      generator.int(generator.range(from: 1, to: 40)),
+      generator.int(generator.range(from: -1000, to: 1000)),
     ),
     fn(input) {
       // The values lo, lo + 1, ..., lo + 8n: n in each eighth of the
@@ -232,7 +234,7 @@ pub fn evenly_spaced_values_use_every_block_equally_test() -> Nil {
         list.map(block_chars, fn(char) {
           list.count(out, fn(drawn) { drawn == char })
         })
-      counts == [n, n, n, n, n, n, n, n + 1]
+      assert counts == [n, n, n, n, n, n, n, n + 1]
     },
   )
 }

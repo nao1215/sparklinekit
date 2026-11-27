@@ -19,7 +19,6 @@ import gleam/option.{None}
 import gleam/string
 import metamon
 import metamon/generator.{type Generator}
-import metamon/generator/range
 import render
 import sparklinekit
 import sparklinekit/output_snapshot_test
@@ -30,13 +29,16 @@ const height = 17
 
 fn series_gen() -> Generator(List(Int)) {
   generator.list_of(
-    generator.int(range.constant(-50, 50)),
-    range.constant(1, 20),
+    generator.int(generator.range(from: -50, to: 50)),
+    length: generator.range(from: 1, to: 20),
   )
 }
 
 fn nonzero_series_gen() -> Generator(List(Int)) {
-  generator.list_of(generator.int(range.constant(1, 50)), range.constant(1, 20))
+  generator.list_of(
+    generator.int(generator.range(from: 1, to: 50)),
+    length: generator.range(from: 1, to: 20),
+  )
   |> generator.map(fn(values) {
     list.index_map(values, fn(v, i) {
       case i % 3 {
@@ -140,22 +142,29 @@ fn close(a: Float, b: Float) -> Bool {
   float.absolute_value(a -. b) <=. 0.02
 }
 
-fn same_points(a: List(#(Float, Float)), b: List(#(Float, Float))) -> Bool {
-  list.length(a) == list.length(b)
-  && list.all(list.zip(a, b), fn(pair) {
-    close(pair.0.0, pair.1.0) && close(pair.0.1, pair.1.1)
+// The pairs of points at the same position that are not within 0.02 of
+// each other.
+fn point_mismatches(
+  actual: List(#(Float, Float)),
+  expected: List(#(Float, Float)),
+) -> List(#(#(Float, Float), #(Float, Float))) {
+  list.zip(actual, expected)
+  |> list.filter(fn(pair) {
+    !close(pair.0.0, pair.1.0) || !close(pair.0.1, pair.1.1)
   })
 }
 
-fn same_bars(a: List(Bar), b: List(Bar)) -> Bool {
-  list.length(a) == list.length(b)
-  && list.all(list.zip(a, b), fn(pair) {
+// The pairs of bars at the same position that differ in colour or by more
+// than 0.02 in a coordinate.
+fn bar_mismatches(actual: List(Bar), expected: List(Bar)) -> List(#(Bar, Bar)) {
+  list.zip(actual, expected)
+  |> list.filter(fn(pair) {
     let #(p, q) = pair
-    close(p.x, q.x)
-    && close(p.y, q.y)
-    && close(p.width, q.width)
-    && close(p.height, q.height)
-    && p.fill == q.fill
+    !close(p.x, q.x)
+    || !close(p.y, q.y)
+    || !close(p.width, q.width)
+    || !close(p.height, q.height)
+    || p.fill != q.fill
   })
 }
 
@@ -174,7 +183,8 @@ pub fn reversing_mirrors_the_line_test() -> Nil {
       forward
       |> list.map(fn(p) { #(int.to_float(width) -. p.0, p.1) })
       |> list.reverse
-    same_points(backward, mirrored)
+    assert list.length(backward) == list.length(mirrored)
+    assert point_mismatches(backward, mirrored) == []
   })
 }
 
@@ -187,10 +197,9 @@ pub fn negating_turns_the_line_upside_down_test() -> Nil {
         floats(list.map(values, fn(v) { 0 - v })),
         options,
       ))
-    same_points(
-      down,
-      list.map(up, fn(p) { #(p.0, int.to_float(height) -. p.1) }),
-    )
+    let flipped = list.map(up, fn(p) { #(p.0, int.to_float(height) -. p.1) })
+    assert list.length(down) == list.length(flipped)
+    assert point_mismatches(down, flipped) == []
   })
 }
 
@@ -198,7 +207,10 @@ pub fn negating_turns_the_line_upside_down_test() -> Nil {
 // edge and the last one stopped a gap short of the right edge.
 pub fn reversing_mirrors_the_bars_test() -> Nil {
   metamon.forall(
-    generator.tuple2(series_gen(), generator.int(range.constant(0, 4))),
+    generator.tuple2(
+      series_gen(),
+      generator.int(generator.range(from: 0, to: 4)),
+    ),
     fn(input) {
       let #(values, gap) = input
       let options = bar_options(int.to_float(gap))
@@ -210,7 +222,8 @@ pub fn reversing_mirrors_the_bars_test() -> Nil {
           Bar(..bar, x: int.to_float(width) -. bar.x -. bar.width)
         })
         |> list.reverse
-      same_bars(backward, mirrored)
+      assert list.length(backward) == list.length(mirrored)
+      assert bar_mismatches(backward, mirrored) == []
     },
   )
 }
@@ -232,7 +245,8 @@ pub fn negating_turns_the_bars_upside_down_test() -> Nil {
           },
         )
       })
-    same_bars(down, flipped)
+    assert list.length(down) == list.length(flipped)
+    assert bar_mismatches(down, flipped) == []
   })
 }
 
@@ -245,14 +259,21 @@ pub fn png_bars_have_the_svg_colour_at_their_centre_test() -> Nil {
       |> output_snapshot_test.pixels
       |> string.split("\n")
       |> list.map(string.split(_, " "))
-    list.all(svg_bars, fn(bar) {
-      let x = float.truncate(bar.x +. bar.width /. 2.0)
-      let y = float.truncate(bar.y +. bar.height /. 2.0)
-      let pixel = rows |> list.drop(y) |> list.first |> pixel_at(x)
-      bar.width <. 2.0
-      || bar.height <. 2.0
-      || pixel == string.uppercase(string.drop_start(bar.fill, 1)) <> "FF"
-    })
+    let wrong =
+      list.filter_map(svg_bars, fn(bar) {
+        let x = float.truncate(bar.x +. bar.width /. 2.0)
+        let y = float.truncate(bar.y +. bar.height /. 2.0)
+        let pixel = rows |> list.drop(y) |> list.first |> pixel_at(x)
+        case
+          bar.width <. 2.0
+          || bar.height <. 2.0
+          || pixel == string.uppercase(string.drop_start(bar.fill, 1)) <> "FF"
+        {
+          True -> Error(Nil)
+          False -> Ok(#(bar, pixel))
+        }
+      })
+    assert wrong == []
   })
 }
 
@@ -311,16 +332,21 @@ fn int_range(from: Int, to: Int) -> List(Int) {
   |> list.reverse
 }
 
-fn same_alphas(png: List(List(Int)), svg: List(List(Int))) -> Bool {
-  list.length(png) == list.length(svg)
-  && list.all(list.zip(png, svg), fn(rows) {
-    list.length(rows.0) == list.length(rows.1)
-    && list.all(list.zip(rows.0, rows.1), fn(pair) {
-      // The SVG coordinates are rounded to two decimals, so an edge read
-      // back from them can be up to 0.01 pixel off in each direction.
-      int.absolute_value(pair.0 - pair.1) <= 6
-    })
+// The #(row, column, png alpha, svg alpha) of every pixel whose alphas
+// differ by more than 6. The SVG coordinates are rounded to two decimals,
+// so an edge read back from them can be up to 0.01 pixel off in each
+// direction.
+fn alpha_mismatches(
+  png: List(List(Int)),
+  svg: List(List(Int)),
+) -> List(#(Int, Int, Int, Int)) {
+  list.zip(png, svg)
+  |> list.index_map(fn(rows, row) {
+    list.zip(rows.0, rows.1)
+    |> list.index_map(fn(pair, column) { #(row, column, pair.0, pair.1) })
   })
+  |> list.flatten
+  |> list.filter(fn(pixel) { int.absolute_value(pixel.2 - pixel.3) > 6 })
 }
 
 // Bars are at least a pixel apart, so no pixel is shared by two bars, and
@@ -330,19 +356,19 @@ pub fn png_bars_cover_the_pixels_the_svg_bars_cover_test() -> Nil {
   metamon.forall(
     generator.tuple4(
       series_gen(),
-      generator.int(range.constant(4, 8)),
-      generator.int(range.constant(0, 19)),
-      generator.int(range.constant(1, 3)),
+      generator.int(generator.range(from: 4, to: 8)),
+      generator.int(generator.range(from: 0, to: 19)),
+      generator.int(generator.range(from: 1, to: 3)),
     ),
     fn(input) {
       let #(values, share, extra, gap) = input
       let width = list.length(values) * share + extra
       let options = coverage_options(width, int.to_float(gap))
       let svg = bars(render.bar_svg(floats(values), options))
-      same_alphas(
-        png_alphas(render.bar_png(floats(values), options)),
-        svg_alphas(svg, width),
-      )
+      let png = png_alphas(render.bar_png(floats(values), options))
+      let expected = svg_alphas(svg, width)
+      assert list.map(png, list.length) == list.map(expected, list.length)
+      assert alpha_mismatches(png, expected) == []
     },
   )
 }

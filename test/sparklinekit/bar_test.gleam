@@ -293,3 +293,104 @@ pub fn constant_negative_bars_hang_from_the_top_test() {
   let positive = render.bar_svg([3.0, 3.0], sparklinekit.default_bar_options)
   assert string.contains(positive, "y=\"20.0\" width=\"99.0\" height=\"20.0\"")
 }
+
+// A corner radius larger than half the bar width is drawn as half the
+// width, in SVG and in PNG.
+pub fn corner_radius_is_at_most_half_the_bar_width_test() {
+  let options =
+    sparklinekit.BarOptions(
+      ..sparklinekit.default_bar_options,
+      width: 4,
+      height: 20,
+      gap: 0.0,
+    )
+  let large = sparklinekit.BarOptions(..options, corner_radius: 5.0)
+  let half = sparklinekit.BarOptions(..options, corner_radius: 1.0)
+  assert render.bar_svg([1.0, 3.0], large)
+    == string.concat([
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"20\" viewBox=\"0 0 4 20\" preserveAspectRatio=\"none\">",
+      "<rect x=\"0.0\" y=\"13.33\" width=\"2.0\" height=\"6.67\" fill=\"currentColor\" rx=\"1.0\"/>",
+      "<rect x=\"2.0\" y=\"0.0\" width=\"2.0\" height=\"20.0\" fill=\"currentColor\" rx=\"1.0\"/>",
+      "</svg>",
+    ])
+  assert render.bar_png([1.0, 3.0], large) == render.bar_png([1.0, 3.0], half)
+}
+
+pub fn constant_zero_bars_stand_on_the_bottom_test() {
+  let svg =
+    render.bar_svg(
+      [0.0, 0.0],
+      sparklinekit.BarOptions(
+        ..sparklinekit.default_bar_options,
+        width: 4,
+        height: 20,
+        gap: 0.0,
+      ),
+    )
+  assert string.contains(
+    svg,
+    string.concat([
+      "<rect x=\"0.0\" y=\"10.0\" width=\"2.0\" height=\"10.0\" fill=\"currentColor\"/>",
+      "<rect x=\"2.0\" y=\"10.0\" width=\"2.0\" height=\"10.0\" fill=\"currentColor\"/>",
+    ]),
+  )
+}
+
+// A gap as wide as each bar's share of the width, or wider, is dropped.
+pub fn gap_without_room_for_the_bars_is_dropped_test() {
+  let options =
+    sparklinekit.BarOptions(
+      ..sparklinekit.default_bar_options,
+      width: 4,
+      height: 20,
+    )
+  let expected =
+    render.bar_svg(
+      [1.0, 2.0, 3.0, 4.0],
+      sparklinekit.BarOptions(..options, gap: 0.0),
+    )
+  assert string.contains(expected, "width=\"1.0\" height=\"5.0\"")
+  assert render.bar_svg(
+      [1.0, 2.0, 3.0, 4.0],
+      sparklinekit.BarOptions(..options, gap: 1.0),
+    )
+    == expected
+  assert render.bar_svg(
+      [1.0, 2.0, 3.0, 4.0],
+      sparklinekit.BarOptions(..options, gap: 2.0),
+    )
+    == expected
+}
+
+// A value too small to see is drawn as a one-pixel bar next to zero, on
+// its own side when it fits there, including when it fits exactly.
+pub fn hairline_bars_at_the_edge_of_the_canvas_test() {
+  let options =
+    sparklinekit.BarOptions(
+      ..sparklinekit.default_bar_options,
+      height: 10,
+      gap: 0.0,
+    )
+  // Zero is one pixel below the top: a zero bar fits above it.
+  assert string.contains(
+    render.bar_svg(
+      [-9.0, 1.0, 0.0],
+      sparklinekit.BarOptions(..options, width: 3),
+    ),
+    "<rect x=\"2.0\" y=\"0.0\" width=\"1.0\" height=\"1.0\" fill=\"currentColor\"/>",
+  )
+  // Zero is less than a pixel above the bottom: a small negative bar is
+  // drawn above zero.
+  assert string.contains(
+    render.bar_svg([9.0, -0.01], sparklinekit.BarOptions(..options, width: 2)),
+    "<rect x=\"1.0\" y=\"8.99\" width=\"1.0\" height=\"1.0\" fill=\"#EF4444\"/>",
+  )
+  // Zero is exactly a pixel above the bottom: it fits below.
+  assert string.contains(
+    render.bar_svg(
+      [9.0, -1.0, -0.0001],
+      sparklinekit.BarOptions(..options, width: 3),
+    ),
+    "<rect x=\"2.0\" y=\"9.0\" width=\"1.0\" height=\"1.0\" fill=\"#EF4444\"/>",
+  )
+}
