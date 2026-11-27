@@ -19,19 +19,18 @@ import gleam/list
 import gleam/string
 import metamon
 import metamon/generator.{type Generator}
-import metamon/generator/range
 import render
 import sparklinekit
 
 fn series_gen() -> Generator(List(Int)) {
   generator.list_of(
-    generator.int(range.constant(-50, 50)),
-    range.constant(0, 24),
+    generator.int(generator.range(from: -50, to: 50)),
+    length: generator.range(from: 0, to: 24),
   )
 }
 
 fn factor_gen() -> Generator(Int) {
-  generator.int(range.constant(1, 1000))
+  generator.int(generator.range(from: 1, to: 1000))
 }
 
 fn affine(values: List(Int), scale: Int, shift: Int) -> List(Int) {
@@ -43,20 +42,23 @@ pub fn unicode_ignores_positive_scale_and_shift_test() -> Nil {
     generator.tuple3(
       series_gen(),
       factor_gen(),
-      generator.int(range.constant(-10_000, 10_000)),
+      generator.int(generator.range(from: -10_000, to: 10_000)),
     ),
     fn(input) {
       let #(values, scale, shift) = input
-      sparklinekit.blocks(list.map(affine(values, scale, shift), int.to_float))
-      == sparklinekit.blocks(list.map(values, int.to_float))
+      assert sparklinekit.blocks(list.map(
+          affine(values, scale, shift),
+          int.to_float,
+        ))
+        == sparklinekit.blocks(list.map(values, int.to_float))
     },
   )
 }
 
 pub fn unicode_reversing_the_series_reverses_the_blocks_test() -> Nil {
   metamon.forall(series_gen(), fn(values) {
-    sparklinekit.blocks(list.map(list.reverse(values), int.to_float))
-    == string.reverse(sparklinekit.blocks(list.map(values, int.to_float)))
+    assert sparklinekit.blocks(list.map(list.reverse(values), int.to_float))
+      == string.reverse(sparklinekit.blocks(list.map(values, int.to_float)))
   })
 }
 
@@ -65,8 +67,8 @@ pub fn unicode_values_inside_the_range_do_not_redraw_the_prefix_test() -> Nil {
     generator.tuple2(
       series_gen(),
       generator.list_of(
-        generator.int(range.constant(0, 100)),
-        range.constant(1, 8),
+        generator.int(generator.range(from: 0, to: 100)),
+        length: generator.range(from: 1, to: 8),
       ),
     ),
     prefix_is_kept,
@@ -107,8 +109,8 @@ pub fn line_ignores_positive_scale_test() -> Nil {
     generator.tuple3(series_gen(), factor_gen(), generator.bool()),
     fn(input) {
       let #(values, scale, styled) = input
-      line_outputs(affine(values, scale, 0), styled)
-      == line_outputs(values, styled)
+      assert line_outputs(affine(values, scale, 0), styled)
+        == line_outputs(values, styled)
     },
   )
 }
@@ -116,7 +118,7 @@ pub fn line_ignores_positive_scale_test() -> Nil {
 pub fn bar_ignores_positive_scale_test() -> Nil {
   metamon.forall(generator.tuple2(series_gen(), factor_gen()), fn(input) {
     let #(values, scale) = input
-    bar_outputs(affine(values, scale, 0)) == bar_outputs(values)
+    assert bar_outputs(affine(values, scale, 0)) == bar_outputs(values)
   })
 }
 
@@ -126,28 +128,28 @@ pub fn plain_line_ignores_shift_test() -> Nil {
   metamon.forall(
     generator.tuple2(
       series_gen(),
-      generator.int(range.constant(-10_000, 10_000)),
+      generator.int(generator.range(from: -10_000, to: 10_000)),
     ),
     fn(input) {
       let #(values, shift) = input
-      line_outputs(affine(values, 1, shift), False)
-      == line_outputs(values, False)
+      assert line_outputs(affine(values, 1, shift), False)
+        == line_outputs(values, False)
     },
   )
 }
 
-fn prefix_is_kept(input: #(List(Int), List(Int))) -> Bool {
+fn prefix_is_kept(input: #(List(Int), List(Int))) -> Nil {
   let #(values, percents) = input
   case list.reduce(values, int.min), list.reduce(values, int.max) {
     Ok(lo), Ok(hi) -> {
       // Points inside [lo, hi].
       let inside = list.map(percents, fn(p) { lo + { hi - lo } * p / 100 })
       let before = sparklinekit.blocks(list.map(values, int.to_float))
-      string.starts_with(
-        sparklinekit.blocks(list.map(list.append(values, inside), int.to_float)),
-        before,
-      )
+      let after =
+        sparklinekit.blocks(list.map(list.append(values, inside), int.to_float))
+      assert string.slice(after, at_index: 0, length: string.length(before))
+        == before
     }
-    _, _ -> True
+    _, _ -> Nil
   }
 }

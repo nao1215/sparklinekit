@@ -30,20 +30,31 @@
 
 ## Nightly runs
 
-`.github/workflows/nightly-property.yml` runs the whole suite ten times with `METAMON_RUNS_MULTIPLIER=10`, each pass with a new seed. A failure report prints its seed, so the case can be replayed with `metamon.with_seed` and kept as a regression test.
+`.github/workflows/nightly-property.yml` runs the whole suite ten times with `METAMON_RUNS_MULTIPLIER=10`, each pass with a new seed. A failure report prints its seed, so the case can be replayed with `metamon.Config(..metamon.default_config(), seed: Some(seed))` and kept as a regression test.
 
 ## Mutation testing
 
-There is no mutation testing tool for Gleam, so `gleam_mutate.py` (from the mutation-testing lab in nao1215/debimate, with integer comparison and arithmetic operators added) is run by hand on a copy of the project. It rewrites one operator or boolean result at a time (`==`/`!=`, `<`/`<=`, `>`/`>=`, `+`/`-`, `&&`/`||`, `-> True`/`-> False`, a dropped `!`, float comparisons and `-.`) and runs `gleam test` on the Erlang target. The score is killed / (killed + lived).
+`gleam run -m metamon/mutation` changes one operator, `!` or boolean literal in a module under `src/` at a time and runs `gleam test --target erlang` on each change. `.github/workflows/mutation.yml` mutates the modules a pull request or push changes and fails on a survivor that `doc/mutation/baseline.json` does not list; the weekly run mutates every module. `just mutation` runs it locally and `just mutation-record` records the baseline. The score is (killed + timed out) / (killed + timed out + lived).
 
-| Date | Files | Killed | Lived | Score |
-|---|---|---:|---:|---:|
-| 2026-11-19 | every module under `src/`, with the metamon relations | 32 | 166 | 16.2% |
-| 2026-11-19 | the same, plus the full-output snapshots | 110 | 88 | 55.6% |
+The first run (2026-11-27) scored 77.7% with 69 survivors. Tests were then added for a zero stroke width, the inset on a canvas smaller than the dot, areas of series whose minimum or maximum is exactly zero, gradient areas above and below zero, a corner radius beyond half the bar width, constant zero bars, a gap that leaves no room for the bars, hairline bars at the edge of the canvas, partly covered pixels and untouched pixels over a transparent background, the edges next to a rounded corner and the rim of a dot off the pixel grid, and the score rose to 85.4%. The 45 survivors left change nothing on Erlang:
 
-The first run showed that no test looked at path coordinates or pixels: the attribute-level snapshots and the shape relations pass for almost any change to scaling or rasterisation. `test/sparklinekit/output_snapshot_test.gleam` pins whole SVG documents and every PNG pixel. The remaining survivors, grouped:
+- Guards for a case the callers never produce (9): an area or a segment of zero size, a dot of radius zero, a stroke of zero thickness, and a value range whose ends are equal.
+- Comparisons whose two sides give the same result at the boundary (13): a pixel exactly on the area baseline, on a dot rim, on a segment end or covered exactly 0 or 1, a zero value or a bar exactly one pixel high, the square root of zero, a fully transparent blend, and a line at exactly 45 degrees.
+- Writes the image never shows (7): pixels outside the canvas, which the PNG never reads, and cells past the end of a shape, which have zero coverage.
+- Corner sampling (5): no sample point lies exactly on an edge or on the rim of a corner.
+- `internal/scale` (7): halving large values is exact in binary floating point, and the NaN check in `finite` cannot fail on Erlang.
+- `internal/png` (2): a width or height of exactly 1 is kept as 1 by both branches.
+- The right end of the box a dot is drawn in (1): the dot is always a whole number of pixels from the right edge, so the pixels it drops are never covered.
+- An unused loop argument in the line rasteriser (1).
 
-- `internal/raster` (40): anti-aliasing and disc arithmetic whose effect stays below one 8-bit colour step at the snapshot sizes, or outside the 24x8 canvases.
-- `line` (17) and `bar` (15): clamps of out-of-range options (smoothing, spot radius, sizes, gaps) and the baseline and hairline checks at exactly zero, which no snapshot input reaches.
-- `internal/color` (5), `internal/scale` (5), `internal/png` (3), `internal/format` (2): clamps at exactly 0 or 255, the store-block split of images larger than 64 KiB and coordinate clamping of non-finite values.
-- `unicode` (1): the upper clamp of the block index, which rounding never exceeds.
+<!-- mutation:start -->
+| Module | Killed | Lived | Timed out | Score |
+|---|---:|---:|---:|---:|
+| `sparklinekit` | 119 | 12 | 0 | 90.8% |
+| `sparklinekit/internal/color` | 23 | 1 | 0 | 95.8% |
+| `sparklinekit/internal/format` | 5 | 0 | 0 | 100.0% |
+| `sparklinekit/internal/png` | 9 | 2 | 2 | 84.6% |
+| `sparklinekit/internal/raster` | 94 | 22 | 0 | 81.0% |
+| `sparklinekit/internal/scale` | 12 | 8 | 0 | 60.0% |
+| all | 262 | 45 | 2 | 85.4% |
+<!-- mutation:end -->

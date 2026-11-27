@@ -591,3 +591,108 @@ pub fn png_area_of_a_reversed_line_is_mirrored_test() {
   let falling = alpha_rows(render.line_png([1.0, 0.0], edge_area_options(0.0)))
   assert list.map(rising, list.reverse) == falling
 }
+
+pub fn zero_stroke_width_draws_the_hairline_test() {
+  let options =
+    sparklinekit.LineOptions(
+      ..sparklinekit.default_line_options,
+      width: 20,
+      height: 10,
+    )
+  let zero = sparklinekit.LineOptions(..options, stroke_width: 0.0)
+  let hairline = sparklinekit.LineOptions(..options, stroke_width: 0.5)
+  assert render.line_svg([1.0, 3.0, 2.0], zero)
+    == render.line_svg([1.0, 3.0, 2.0], hairline)
+  assert render.line_png([1.0, 3.0, 2.0], zero)
+    == render.line_png([1.0, 3.0, 2.0], hairline)
+}
+
+// The inset that keeps the dot inside the canvas is at most half the
+// width and half the height.
+pub fn inset_is_at_most_half_the_canvas_test() {
+  let options =
+    sparklinekit.LineOptions(
+      ..sparklinekit.default_line_options,
+      spot_radius: 3.0,
+    )
+  let narrow =
+    render.line_svg(
+      [1.0, 3.0, 2.0],
+      sparklinekit.LineOptions(..options, width: 3, height: 20),
+    )
+  assert string.contains(narrow, "d=\"M 1.5 18.5 L 1.5 1.5 L 1.5 10.0\"")
+  let flat =
+    render.line_svg(
+      [1.0, 3.0, 2.0],
+      sparklinekit.LineOptions(..options, width: 4, height: 3),
+    )
+  assert string.contains(flat, "d=\"M 1.5 1.5 L 2.0 1.5 L 2.5 1.5\"")
+}
+
+// A series whose minimum is exactly zero closes its area at the bottom
+// edge, and one whose maximum is exactly zero at the top edge.
+pub fn area_of_a_series_touching_zero_closes_at_the_edge_test() {
+  let options =
+    sparklinekit.LineOptions(
+      ..sparklinekit.default_line_options,
+      width: 20,
+      height: 10,
+      area: sparklinekit.SolidArea,
+    )
+  assert string.contains(
+    render.line_svg([0.0, 2.0, 1.0], options),
+    "d=\"M 1.0 9.0 L 10.0 1.0 L 19.0 5.0 L 19.0 10.0 L 1.0 10.0 Z\"",
+  )
+  assert string.contains(
+    render.line_svg([0.0, -2.0, -1.0], options),
+    "d=\"M 1.0 1.0 L 10.0 9.0 L 19.0 5.0 L 19.0 0.0 L 1.0 0.0 Z\"",
+  )
+}
+
+// An area above zero fades from the area opacity at the top to nothing at
+// the bottom, and the id names the opacity of `currentColor` in percent.
+pub fn gradient_area_above_zero_fades_downwards_test() {
+  let svg =
+    render.line_svg(
+      [1.0, 2.0, 1.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 20,
+        height: 10,
+        area: sparklinekit.GradientArea,
+      ),
+    )
+  assert string.contains(
+    svg,
+    string.concat([
+      "<linearGradient id=\"sparklinekit-area-20x10-3-current22\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">",
+      "<stop offset=\"0%\" stop-color=\"currentColor\" stop-opacity=\"0.22\"/>",
+      "<stop offset=\"100%\" stop-color=\"currentColor\" stop-opacity=\"0\"/>",
+      "</linearGradient>",
+    ]),
+  )
+}
+
+// An area below zero fades from the area opacity at the bottom to nothing
+// at the top.
+pub fn gradient_area_below_zero_fades_upwards_test() {
+  let svg =
+    render.line_svg(
+      [-1.0, -2.0, -1.0],
+      sparklinekit.LineOptions(
+        ..sparklinekit.default_line_options,
+        width: 20,
+        height: 10,
+        area: sparklinekit.GradientArea,
+      ),
+    )
+  assert string.contains(
+    svg,
+    string.concat([
+      "x1=\"0\" y1=\"1\" x2=\"0\" y2=\"0\">",
+      "<stop offset=\"0%\" stop-color=\"currentColor\" stop-opacity=\"0.22\"/>",
+      "<stop offset=\"100%\" stop-color=\"currentColor\" stop-opacity=\"0\"/>",
+      "</linearGradient>",
+    ]),
+  )
+}
